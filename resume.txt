@@ -1,0 +1,80 @@
+RESUME FILE — Sales Outreach Voice Agent (SDR Colab Prototype)
+================================================================
+
+WHAT THIS PROJECT IS
+---------------------
+A single Google Colab notebook (sdr_voice_agent.ipynb) implementing a fully
+self-hosted, conversational outbound-SDR voice agent using LiveKit Agents:
+- STT: whisper-large-v3-turbo via faster-whisper (in-process)
+- LLM: Qwen2.5-7B-Instruct served by Ollama (localhost:11434, OpenAI-compatible)
+- TTS: OmniVoice (k2-fsa), in-process
+- Room/signaling server: self-hosted livekit-server, exposed via two ngrok
+  TCP tunnels (7880 signaling, 7881 ICE/TCP media), since Colab has no
+  public inbound networking.
+- Tested manually via LiveKit's hosted Agents Playground (no custom UI).
+
+KEY DOCUMENTS (read these first to re-orient)
+-----------------------------------------------
+1. Design spec:  docs/superpowers/specs/2026-07-06-sdr-voice-agent-colab-design.md
+2. Implementation plan (10 tasks): docs/superpowers/plans/2026-07-06-sdr-voice-agent-colab.md
+3. Progress ledger (source of truth for what's done): .superpowers/sdd/progress.md
+   NOTE: .superpowers/ is git-ignored — it will NOT survive `git clean -fdx`.
+   If it's ever missing, trust `git log` over memory to reconstruct progress.
+
+HOW TO RESUME
+--------------
+This was being executed with the superpowers:subagent-driven-development
+skill (fresh implementer subagent per task, task-reviewer subagent after
+each, dispatched from the main session — NOT a separate background
+process). To pick back up:
+
+1. Invoke Skill "superpowers:subagent-driven-development" again (or just
+   ask Claude to "continue executing the SDR voice agent plan").
+2. Read .superpowers/sdd/progress.md — every task listed there as
+   "complete" is done; do NOT re-dispatch it.
+3. Resume at the first task NOT marked complete in the ledger (see status
+   below).
+4. Per task: run
+     scripts/task-brief docs/superpowers/plans/2026-07-06-sdr-voice-agent-colab.md N
+   (script lives in the subagent-driven-development skill's scripts/ dir),
+   dispatch a fresh implementer subagent with that brief, then generate a
+   review package with scripts/review-package BASE HEAD and dispatch a
+   task-reviewer subagent. Loop fix->re-review until approved, then append
+   a line to the ledger and move to the next task.
+
+CURRENT STATUS (as of this file's writing)
+--------------------------------------------
+Tasks 1-6 of 10: COMPLETE, all reviews clean.
+  1. Notebook scaffold, GPU check, dependency install
+  2. STT — faster-whisper load + verify (required a follow-up fix: missing cell tags)
+  3. LLM — Ollama + Qwen2.5-7B-Instruct (required a follow-up fix: accidental
+     em-dash re-encoding of an unrelated existing cell)
+  4. TTS — OmniVoice load + verify
+  5. Self-hosted livekit-server + dual ngrok tunnels
+  6. Custom STT plugin (WhisperSTT)
+
+REMAINING (not started)
+-------------------------
+  7. Custom TTS plugin (OmniVoiceTTS)
+  8. SDR persona + AgentSession assembly
+  9. Full run — start agent worker
+  10. Manual end-to-end conversational UAT (human must actually run the
+      notebook on a real Colab GPU + real ngrok account for this one —
+      it cannot be verified in a sandboxed dev environment)
+
+RECURRING GOTCHAS SEEN SO FAR (watch for these in remaining tasks)
+---------------------------------------------------------------------
+- Implementer subagents have twice been sloppy about "append-only" edits:
+  once forgetting cell metadata tags entirely (Task 2), once accidentally
+  re-serializing the WHOLE notebook file and silently re-escaping an
+  unrelated cell's em-dash character (Task 3). Both were caught by the
+  task-reviewer and fixed. Keep instructing implementers explicitly to
+  diff against the pre-edit file and confirm ONLY new cells changed.
+- None of this notebook's GPU/model/network-dependent cells have actually
+  been executed anywhere in this process — only structural correctness
+  (valid JSON, correct cell order/tags/content matching the plan verbatim)
+  has been verified. Real execution requires an actual Colab GPU runtime,
+  a real ngrok account with a reserved TCP address, and internet access to
+  pull multi-GB model weights — none of which exist in the sandboxed dev
+  environment used to build this. Task 10's manual UAT is where this
+  actually gets tested for the first time.
