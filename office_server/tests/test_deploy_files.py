@@ -1,7 +1,10 @@
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
+
+import yaml
 
 DEPLOY_DIR = Path(__file__).resolve().parent.parent / "deploy"
 
@@ -83,3 +86,49 @@ def test_scale_workers_enables_one_instance_per_configured_worker(tmp_path):
         "enable --now sdr-worker@2.service",
         "enable --now sdr-worker@3.service",
     ]
+
+
+def test_livekit_server_service_renders_template_and_restarts_on_failure():
+    unit = _read("systemd/livekit-server.service")
+
+    assert "EnvironmentFile=/etc/sdr-agent/office.env" in unit
+    assert "Restart=on-failure" in unit
+    assert "envsubst" in unit
+    assert "livekit-server.yaml.template" in unit
+    assert "--config /etc/livekit/livekit-server.yaml" in unit
+
+
+def test_livekit_server_template_renders_to_valid_yaml_with_tls_and_keys(tmp_path):
+    if shutil.which("envsubst") is None:
+        import pytest
+
+        pytest.skip("envsubst not available in this environment")
+
+    template_path = DEPLOY_DIR / "livekit" / "livekit-server.yaml.template"
+    assert template_path.exists()
+
+    env = dict(os.environ)
+    env.update(
+        {
+            "LIVEKIT_API_KEY": "testkey",
+            "LIVEKIT_API_SECRET": "testsecret",
+            "OFFICE_DOMAIN": "voice.example-office.com",
+        }
+    )
+
+    result = subprocess.run(
+        ["sh", "-c", f"envsubst < {template_path}"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    rendered = yaml.safe_load(result.stdout)
+
+    assert rendered["keys"] == {"testkey": "testsecret"}
+    assert rendered["tls"]["cert_file"] == (
+        "/etc/letsencrypt/live/voice.example-office.com/fullchain.pem"
+    )
+    assert rendered["rtc"]["tcp_port"] == 7881
+    assert rendered["rtc"]["use_external_ip"] is True

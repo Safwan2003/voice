@@ -1,0 +1,16 @@
+[Unit]
+Description=Self-hosted LiveKit signaling/media server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sdr-agent/office.env
+ExecStartPre=/bin/sh -c 'envsubst < /opt/sdr-agent/deploy/livekit/livekit-server.yaml.template > /etc/livekit/livekit-server.yaml'
+ExecStart=/usr/local/bin/livekit-server --config /etc/livekit/livekit-server.yaml
+Restart=on-failure
+RestartSec=5
+User=sdr-agent
+
+[Install]
+WantedBy=multi-user.target
