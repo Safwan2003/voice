@@ -4,4 +4,6 @@ sdr_voice_agent.ipynb
 __pycache__/
 *.egg-info/
 .pytest_cache/
+*.env
+!*.env.example
 
