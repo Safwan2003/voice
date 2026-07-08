@@ -1,0 +1,16 @@
+[Unit]
+Description=SDR voice agent worker (%i)
+After=network-online.target vllm.service
+Wants=network-online.target
+Requires=vllm.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sdr-agent/office.env
+ExecStart=/opt/sdr-agent/venv/bin/python -m sdr_agent.worker
+Restart=on-failure
+RestartSec=5
+User=sdr-agent
+
+[Install]
+WantedBy=multi-user.target
