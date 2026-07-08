@@ -83,7 +83,7 @@ Create `office_server/pyproject.toml`:
 [project]
 name = "sdr-agent"
 version = "0.1.0"
-description = "Office server production deployment of the SDR voice agent"
+description = "Voxreach — office server production deployment of the AI voice agent worker"
 requires-python = ">=3.10"
 dependencies = [
     "livekit-agents~=1.0",
