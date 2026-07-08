@@ -1,0 +1,36 @@
+[project]
+name = "sdr-agent"
+version = "0.1.0"
+description = "Voxreach — office server production deployment of the AI voice agent worker"
+requires-python = ">=3.10"
+dependencies = [
+    "livekit-agents~=1.0",
+    "livekit-plugins-openai~=1.0",
+    "livekit-plugins-silero~=1.0",
+    "faster-whisper",
+    "soundfile",
+    "numpy",
+]
+# omnivoice has no reliable PyPI release; install separately:
+#   pip install omnivoice || pip install "git+https://github.com/k2-fsa/OmniVoice.git"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+sdr-worker = "sdr_agent.worker:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
