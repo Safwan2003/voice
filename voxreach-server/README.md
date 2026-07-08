@@ -63,6 +63,27 @@ set -a; . office.env; set +a
 python scripts/generate-test-token.py
 ```
 
+## Run it on Windows (with an NVIDIA GPU)
+
+vLLM has no solid native Windows support, so this goes through **WSL2**
+(Windows Subsystem for Linux) — Windows' own supported way to run a real
+Linux environment with GPU passthrough, rather than reimplementing the
+pipeline in batch/PowerShell:
+
+1. Download [`windows/install-and-run.bat`](windows/install-and-run.bat).
+2. Right-click it → **Run as administrator**.
+3. Follow the on-screen instructions. On a machine with nothing installed
+   yet, this needs **one restart** partway through (WSL2 itself requires
+   it the first time it's enabled) — the script tells you exactly when
+   and to just re-run it afterward.
+
+It installs WSL2 + Ubuntu, then inside that environment installs
+prerequisites, clones this repo, sets up the Python venv, installs `vllm`
+(this time with a real GPU to use), and runs `start.sh` — the same script
+used natively on Linux. `windows/bootstrap.sh` holds the actual Linux-side
+setup logic (kept as a tracked script rather than inlined in the `.bat`,
+so it isn't fighting `cmd.exe`'s quoting rules).
+
 ## Deploy to production (real domain, TLS, auto-restart)
 
 ```bash
@@ -86,10 +107,12 @@ rendered via `envsubst` at service start) instead of the local no-TLS one.
 
 Every hardware/environment-specific value is an env var — nothing is
 hardcoded — so this should run unchanged on any Linux box once `office.env`
-is filled in. It is **not containerized**: deployment assumes a Linux
-server with systemd. Docker support (one image per component, wired with
-`docker-compose.yml`) would be the natural next step for true any-OS
-portability, but hasn't been built.
+is filled in. `start.sh` runs `livekit-server` via Podman if the native
+binary isn't installed, but vLLM and the worker itself still run natively
+(not containerized) — production deployment assumes a Linux server with
+systemd. Windows is supported via WSL2 (see above), not natively. A full
+`docker-compose.yml` covering every component would be the natural next
+step for deeper portability, but hasn't been built.
 
 ## `.env` keys
 
