@@ -502,9 +502,15 @@ function saveConnSettings(){
   toast('Connection settings saved locally','ok');
 }
 function loadConnSettingsIntoInputs(){
-  const url = localStorage.getItem('sdr_lk_url'); const token = localStorage.getItem('sdr_lk_token');
+  // URL query params (?url=...&token=...) take priority — this is how
+  // start.sh hands back a ready-to-click link after generating a test
+  // token, without the user having to copy/paste anything manually.
+  const params = new URLSearchParams(window.location.search);
+  const url = params.get('url') || localStorage.getItem('sdr_lk_url');
+  const token = params.get('token') || localStorage.getItem('sdr_lk_token');
   if(url) document.getElementById('connUrl').value = url;
   if(token) document.getElementById('connToken').value = token;
+  if(params.get('url') || params.get('token')) saveConnSettings();
 }
 
 function addMsg(who, text){

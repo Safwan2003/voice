@@ -2,7 +2,9 @@
 set -eu
 
 # Runs the complete Voxreach voice agent stack (vLLM + livekit-server +
-# worker) on a single GPU machine, for local development/testing.
+# worker) on a single GPU machine, for local development/testing, then
+# generates a test token and serves the UI — so this one command leaves
+# you with a ready-to-click link, not just backend services.
 #
 # This starts a NON-TLS, localhost-only livekit-server (ws://localhost:7880)
 # — it does NOT need a real domain or TLS certs. For production deployment
@@ -14,6 +16,9 @@ set -eu
 # Default env file: ./office.env (copy deploy/env/office.env.example first
 # and fill in real LIVEKIT_API_KEY/LIVEKIT_API_SECRET — see that file's
 # comments for how to generate them).
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+UI_PORT="${UI_PORT:-8080}"
 
 ENV_FILE="${1:-./office.env}"
 if [ ! -f "$ENV_FILE" ]; then
@@ -65,7 +70,7 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
-echo "[1/3] Starting vLLM (${OFFICE_LLM_MODEL})..."
+echo "[1/4] Starting vLLM (${OFFICE_LLM_MODEL})..."
 vllm serve "$OFFICE_LLM_MODEL" --port 8000 --gpu-memory-utilization "$OFFICE_VLLM_GPU_MEM_UTIL" &
 PIDS="$PIDS $!"
 
@@ -75,19 +80,33 @@ until curl -sf http://localhost:8000/health >/dev/null 2>&1; do
 done
 echo "vLLM is up."
 
-echo "[2/3] Starting livekit-server (local, no TLS, ws://localhost:7880)..."
+echo "[2/4] Starting livekit-server (local, no TLS, ws://localhost:7880)..."
 livekit-server --config "$LOCAL_LIVEKIT_CONFIG" &
 PIDS="$PIDS $!"
 sleep 3
 
-echo "[3/3] Starting sdr-agent worker..."
+echo "[3/4] Starting sdr-agent worker..."
 LIVEKIT_URL="ws://localhost:7880" python -m sdr_agent.worker &
 PIDS="$PIDS $!"
+sleep 2
+
+echo "[4/4] Generating a test token and serving the UI..."
+TEST_TOKEN="$(python "$SCRIPT_DIR/scripts/generate-test-token.py" --raw)"
+
+python3 -m http.server "$UI_PORT" --directory "$SCRIPT_DIR/ui" >/dev/null 2>&1 &
+PIDS="$PIDS $!"
+sleep 1
+
+ENCODED_URL="ws%3A%2F%2Flocalhost%3A7880"
+READY_LINK="http://localhost:${UI_PORT}/index.html?url=${ENCODED_URL}&token=${TEST_TOKEN}"
 
 echo ""
-echo "All services running."
-echo "  LiveKit URL:    ws://localhost:7880"
-echo "  LiveKit API key/secret: from $ENV_FILE"
-echo "Connect via the LiveKit Agents Playground or index.html with those values."
+echo "All services running:"
+echo "  vLLM:          http://localhost:8000"
+echo "  livekit-server: ws://localhost:7880"
+echo "  UI + token pre-filled:"
+echo "  ${READY_LINK}"
+echo ""
+echo "Open that link in a browser and click Connect."
 echo "Press Ctrl+C to stop everything."
 wait

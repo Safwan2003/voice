@@ -8,11 +8,12 @@ Two tracks in this repo:
 - **Colab prototype** (`colab/`) — the validated proof of concept, runs on
   Google Colab's free GPU. See
   `docs/superpowers/plans/2026-07-06-sdr-voice-agent-colab.md`.
-- **Office server deployment** (`office_server/`) — the production
+- **Office server deployment** (`voxreach-server/`) — the production
   package, meant for a self-hosted server with a GPU. See
-  [`office_server/README.md`](office_server/README.md) for how to run it,
-  and `docs/superpowers/specs/` for the design docs.
+  [`voxreach-server/README.md`](voxreach-server/README.md) for how to run
+  it (`./start.sh` gives you a one-command local test with a ready-to-click
+  link), and `docs/superpowers/specs/` for the design docs.
 
 Each track has its own browser-based LiveKit connection tester
-(`colab/index.html`, `office_server/index.html`) for manually trying that
-pipeline.
+(`colab/index.html`, `voxreach-server/ui/index.html`) for manually trying
+that pipeline.

@@ -1,4 +1,4 @@
-# Voxreach — Office Server Deployment
+# voxreach-server — Office Server Deployment
 
 Production deployment of the Voxreach AI voice agent: an outbound SDR
 voice pipeline (STT + LLM + TTS over LiveKit's real-time transport),
@@ -50,17 +50,18 @@ pip install omnivoice || pip install "git+https://github.com/k2-fsa/OmniVoice.gi
 
 `start.sh` starts vLLM, a local non-TLS `livekit-server`
 (`ws://localhost:7880` — no domain or certs needed for local testing), and
-the worker, waits for vLLM to become healthy first, and cleans up all three
-on Ctrl+C. Get a test access token with:
+the worker — then generates a test token itself and serves `ui/index.html`
+on `http://localhost:8080`, printing a **ready-to-click link with the URL
+and token pre-filled**. Open that link, hit Connect, done. Ctrl+C stops
+all four processes (vLLM, livekit-server, worker, the UI's HTTP server).
+
+Prefer to do it by hand, or connect via the LiveKit Agents Playground
+instead of `ui/index.html`? Generate a token yourself:
 
 ```bash
 set -a; . office.env; set +a
 python scripts/generate-test-token.py
 ```
-
-Then open `index.html` (this package's own tester, not the Colab one) or
-the LiveKit Agents Playground, and connect with `ws://localhost:7880` and
-that token.
 
 ## Deploy to production (real domain, TLS, auto-restart)
 
