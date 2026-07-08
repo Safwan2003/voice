@@ -8,7 +8,6 @@ dependencies = [
     "livekit-plugins-openai~=1.0",
     "livekit-plugins-silero~=1.0",
     "faster-whisper",
-    "soundfile",
     "numpy",
 ]
 # omnivoice has no reliable PyPI release; install separately:
