@@ -6,6 +6,7 @@ Requires=vllm.service
 
 [Service]
 Type=simple
+WorkingDirectory=/opt/sdr-agent
 EnvironmentFile=/etc/sdr-agent/office.env
 ExecStart=/opt/sdr-agent/venv/bin/python -m sdr_agent.worker
 Restart=on-failure
