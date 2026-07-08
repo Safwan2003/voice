@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NovaPulse — AI Sales Development Platform</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.20.0/dist/livekit-client.umd.min.js"></script>
+<style>
+:root {
+  --bg0:#f4f6fb; --bg1:#ffffff; --bg2:#ffffff; --bg3:#eef1f7; --bg4:#e3e8f2;
+  --border:#e2e6ee; --border-l:#c9d0e0;
+  --tx:#161c2d; --tx2:#5b6478; --tx3:#8b93a8;
+  --am:#f5a623; --am2:#d9860f; --am-d:rgba(245,166,35,.14); --am-d2:rgba(245,166,35,.07);
+  --gr:#16a34a; --gr-d:rgba(22,163,74,.12);
+  --rd:#dc2626; --rd-d:rgba(220,38,38,.12);
+  --bl:#2563eb; --bl-d:rgba(37,99,235,.10);
+  --pp:#9333ea; --pp-d:rgba(147,51,234,.10);
+  --cy:#0e7490; --cy-d:rgba(14,116,144,.10);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg0);color:var(--tx);overflow-x:hidden}
+h1,h2,h3,h4,h5,h6{font-family:'Space Grotesk',sans-serif}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:9px}
+
+/* ─── SIDEBAR ─── */
+.sb{position:fixed;left:0;top:0;bottom:0;width:68px;background:var(--bg1);border-right:1px solid var(--border);z-index:60;display:flex;flex-direction:column;align-items:center;padding:16px 0}
+.sb-logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--am),var(--am2));display:flex;align-items:center;justify-content:center;margin-bottom:24px;flex-shrink:0}
+.sb-logo i{color:#000;font-size:16px}
+.sb-nav{display:flex;flex-direction:column;gap:4px;flex:1;width:100%;padding:0 8px}
+.sb-btn{width:52px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;color:var(--tx3);position:relative;border:none;background:none}
+.sb-btn:hover{background:var(--bg3);color:var(--tx2)}
+.sb-btn.on{background:var(--am-d);color:var(--am)}
+.sb-btn.on::before{content:'';position:absolute;left:-8px;top:50%;transform:translateY(-50%);width:3px;height:20px;background:var(--am);border-radius:0 3px 3px 0}
+.sb-disabled{opacity:.35;cursor:not-allowed}
+.sb-btn[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:60px;top:50%;transform:translateY(-50%);background:var(--bg4);border:1px solid var(--border-l);color:var(--tx);padding:6px 12px;border-radius:8px;font-size:12px;white-space:nowrap;z-index:70;font-family:'DM Sans',sans-serif;pointer-events:none}
+.sb-bottom{padding:8px;border-top:1px solid var(--border);margin-top:auto;width:100%;display:flex;flex-direction:column;align-items:center;gap:4px}
+
+/* ─── MAIN ─── */
+.mn{margin-left:68px;min-height:100vh}
+.view{display:none}.view.on{display:block}
+
+/* ─── TOP BAR ─── */
+.topbar{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;background:rgba(255,255,255,.85);backdrop-filter:blur(12px);z-index:40}
+.topbar-left{display:flex;align-items:center;gap:16px}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:7px 14px;width:280px;transition:border .2s}
+.search-box:focus-within{border-color:var(--am)}
+.search-box input{background:none;border:none;color:var(--tx);font-size:13px;outline:none;flex:1;font-family:'DM Sans',sans-serif}
+.search-box i{color:var(--tx3);font-size:13px}
+.notif-btn{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--tx3);transition:all .2s;position:relative}
+.notif-btn:hover{border-color:var(--border-l);color:var(--tx2)}
+.notif-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;background:var(--rd);border-radius:50%;border:2px solid var(--bg1)}
+.avatar-sm{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0}
+
+/* ─── CARDS ─── */
+.cd{background:var(--bg2);border:1px solid var(--border);border-radius:14px;transition:border .25s}
+.cd:hover{border-color:var(--border-l)}
+.cd-p{padding:20px}
+
+/* ─── BADGES ─── */
+.bg{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;display:inline-flex;align-items:center;gap:4px}
+.bg-hot{background:rgba(239,68,68,.12);color:#dc2626}
+.bg-warm{background:var(--am-d);color:var(--am)}
+.bg-cold{background:var(--bl-d);color:#2563eb}
+.bg-qualified{background:var(--gr-d);color:#16a34a}
+.bg-meeting{background:var(--pp-d);color:#9333ea}
+.bg-nurture{background:rgba(100,116,139,.1);color:#475569}
+.bg-new{background:var(--cy-d);color:#0e7490}
+
+/* ─── BUTTONS ─── */
+.bt{padding:8px 16px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all .2s;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:6px}
+.bt:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
+.bt-am{background:var(--am);color:#000;border-color:var(--am)}.bt-am:hover{background:#ffb84d;transform:translateY(-1px)}
+.bt-gh{background:transparent;color:var(--tx2);border-color:var(--border)}.bt-gh:hover{border-color:var(--tx3);color:var(--tx)}
+.bt-rd{background:var(--rd-d);color:#dc2626;border-color:rgba(239,68,68,.2)}.bt-rd:hover{background:rgba(239,68,68,.18)}
+.bt-gr{background:var(--gr-d);color:#16a34a;border-color:rgba(34,197,94,.2)}.bt-gr:hover{background:rgba(34,197,94,.18)}
+.bt-bl{background:var(--bl-d);color:#2563eb;border-color:rgba(59,130,246,.15)}.bt-bl:hover{background:rgba(59,130,246,.15)}
+.bt-pp{background:var(--pp-d);color:#9333ea;border-color:rgba(168,85,247,.15)}.bt-pp:hover{background:rgba(168,85,247,.15)}
+.bt-cy{background:var(--cy-d);color:#0e7490;border-color:rgba(6,182,212,.15)}.bt-cy:hover{background:rgba(6,182,212,.15)}
+.bt-sm{padding:5px 10px;font-size:11px}
+.bt-icon{width:34px;height:34px;padding:0;justify-content:center}
+
+/* ─── KPI CARDS ─── */
+.kpi{position:relative;overflow:hidden}
+.kpi::after{content:'';position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;opacity:.06}
+.kpi-am::after{background:var(--am)}
+.kpi-gr::after{background:var(--gr)}
+.kpi-bl::after{background:var(--bl)}
+.kpi-pp::after{background:var(--pp)}
+.kpi-val{font-size:30px;font-weight:700;letter-spacing:-.5px;line-height:1}
+.kpi-lbl{font-size:11px;color:var(--tx3);font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.kpi-chg{font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;margin-top:8px}
+
+/* ─── CALL CONSOLE ─── */
+.console-grid{display:grid;grid-template-columns:280px 1fr 300px;gap:0;height:calc(100vh - 56px)}
+.console-grid.solo{grid-template-columns:1fr!important}
+.conn-bar{padding:10px 20px;background:var(--bg1);border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.conn-bar input{background:var(--bg2);border:1px solid var(--border);color:var(--tx);padding:7px 10px;border-radius:8px;font-size:12px;outline:none;font-family:'DM Sans',sans-serif}
+.conn-bar input:focus{border-color:var(--am)}
+.console-left{border-right:1px solid var(--border);overflow-y:auto;padding:16px}
+.console-center{display:flex;flex-direction:column;overflow:hidden}
+.console-right{border-left:1px solid var(--border);overflow-y:auto;padding:16px}
+
+/* Lead profile mini */
+.lp-avatar{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+.lp-field{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.lp-field-l{color:var(--tx3)}.lp-field-v{font-weight:600;text-align:right;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lp-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;background:var(--bg3);color:var(--tx2);margin:2px}
+
+/* Transcript */
+.tx-area{flex:1;overflow-y:auto;padding:16px 20px}
+.tx-msg{display:flex;gap:10px;margin-bottom:14px;animation:fadeUp .25s ease}
+.tx-msg.right{flex-direction:row-reverse}
+.tx-ava{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:2px}
+.tx-bub{max-width:70%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.55}
+.tx-msg:not(.right) .tx-bub{background:var(--bg3);border:1px solid var(--border);border-bottom-left-radius:4px}
+.tx-msg.right .tx-bub{background:var(--am-d);border:1px solid rgba(245,166,35,.15);border-bottom-right-radius:4px;color:#8a5a10}
+.tx-time{font-size:10px;color:var(--tx3);margin-top:3px;padding:0 4px}
+.tx-msg.right .tx-time{text-align:right}
+.tx-intent{display:inline-block;font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(59,130,246,.1);color:#2563eb;margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+
+/* Call bar */
+.call-bar{border-top:1px solid var(--border);padding:14px 20px;background:var(--bg1)}
+.call-input-row{display:flex;gap:8px}
+.call-input{flex:1;background:var(--bg2);border:1px solid var(--border);color:var(--tx);padding:10px 14px;border-radius:10px;font-size:13px;outline:none;font-family:'DM Sans',sans-serif;transition:border .2s}
+.call-input:focus{border-color:var(--am)}
+.call-input::placeholder{color:var(--tx3)}
+
+/* Coaching cards */
+.coach-card{background:var(--bg3);border:1px solid var(--border);border-radius:11px;padding:14px;margin-bottom:10px}
+.coach-card-accent{border-left:3px solid var(--am)}
+.coach-card-success{border-left:3px solid var(--gr)}
+.coach-card-danger{border-left:3px solid var(--rd)}
+.coach-card-info{border-left:3px solid var(--bl)}
+.coach-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.coach-text{font-size:12px;color:var(--tx2);line-height:1.5}
+.coach-phrase{padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--tx);cursor:pointer;transition:all .2s;margin-bottom:6px;font-style:italic}
+.coach-phrase:hover{border-color:var(--am);background:var(--am-d2)}
+
+/* Metrics strip */
+.metric-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.metric-cell{background:var(--bg2);padding:10px 12px;text-align:center}
+.metric-val{font-size:16px;font-weight:700;font-family:'Space Grotesk',sans-serif}
+.metric-lbl{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+/* Waveform canvas */
+#waveCanvas{display:block;width:100%;height:80px}
+
+/* Campaign cards */
+.camp-card{border:1px solid var(--border);border-radius:14px;padding:20px;background:var(--bg2);transition:all .25s;cursor:pointer}
+.camp-card:hover{border-color:var(--border-l);transform:translateY(-2px)}
+.camp-progress{height:4px;background:var(--bg4);border-radius:4px;overflow:hidden;margin-top:12px}
+.camp-progress-fill{height:100%;border-radius:4px;transition:width .5s}
+
+/* Sequence steps */
+.seq-step{display:flex;align-items:center;gap:12px;padding:10px 0;position:relative}
+.seq-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;z-index:1}
+.seq-line{position:absolute;left:13px;top:38px;bottom:-10px;width:2px;background:var(--border)}
+.seq-step:last-child .seq-line{display:none}
+
+/* Review cards */
+.review-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border .25s;cursor:pointer}
+.review-card:hover{border-color:var(--border-l)}
+.review-score{font-size:28px;font-weight:700;font-family:'Space Grotesk',sans-serif}
+.review-highlight{padding:6px 10px;border-radius:6px;font-size:12px;margin:4px 0;display:inline-block}
+
+/* Toast */
+.toast-c{position:fixed;top:16px;right:16px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 18px;border-radius:10px;font-size:12px;font-weight:500;backdrop-filter:blur(12px);border:1px solid var(--border);animation:fadeUp .25s ease;display:flex;align-items:center;gap:8px}
+.toast-ok{background:rgba(34,197,94,.12);color:#16a34a;border-color:rgba(34,197,94,.25)}
+.toast-err{background:rgba(239,68,68,.12);color:#dc2626;border-color:rgba(239,68,68,.25)}
+.toast-info{background:var(--bl-d);color:#2563eb;border-color:rgba(59,130,246,.2)}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);z-index:100;display:none;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;width:92%;max-width:460px;animation:fadeUp .25s ease}
+.modal input,.modal select{background:var(--bg1);border:1px solid var(--border);color:var(--tx);padding:9px 12px;border-radius:8px;font-size:13px;outline:none;width:100%;font-family:'DM Sans',sans-serif;transition:border .2s}
+.modal input:focus,.modal select:focus{border-color:var(--am)}
+.modal label{font-size:11px;color:var(--tx3);display:block;margin-bottom:4px;font-weight:500}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--rd);animation:pulse 1.2s infinite}
+
+/* Responsive fallback */
+@media(max-width:1100px){.console-grid{grid-template-columns:240px 1fr 260px}}
+@media(max-width:900px){.console-grid{grid-template-columns:1fr}.console-left,.console-right{display:none}}
+</style>
+</head>
+<body>
+
+<div class="toast-c" id="toastC"></div>
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sb">
+  <div class="sb-logo"><i class="fas fa-bolt"></i></div>
+  <div class="sb-nav">
+    <button class="sb-btn sb-disabled" data-tip="Dashboard (not in this test build)" onclick="notAvailable()"><i class="fas fa-grid-2"></i></button>
+    <button class="sb-btn on" data-view="console" data-tip="Call Console" onclick="go('console')"><i class="fas fa-headset"></i></button>
+    <button class="sb-btn sb-disabled" data-tip="Campaigns (not in this test build)" onclick="notAvailable()"><i class="fas fa-bullhorn"></i></button>
+    <button class="sb-btn sb-disabled" data-tip="Leads (not in this test build)" onclick="notAvailable()"><i class="fas fa-address-book"></i></button>
+    <button class="sb-btn sb-disabled" data-tip="Call Reviews (not in this test build)" onclick="notAvailable()"><i class="fas fa-clipboard-check"></i></button>
+  </div>
+  <div class="sb-bottom">
+    <button class="sb-btn" data-tip="Settings" onclick="toast('Settings panel coming soon','info')"><i class="fas fa-gear"></i></button>
+    <div class="avatar-sm" style="background:linear-gradient(135deg,var(--am),var(--am2));color:#000;margin-top:4px;cursor:pointer" onclick="toast('Profile settings','info')">JD</div>
+  </div>
+</aside>
+
+<!-- ─── MAIN ─── -->
+<div class="mn">
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div class="view" id="v-dashboard">
+  <div class="topbar">
+    <div class="topbar-left">
+      <h2 style="font-size:17px;font-weight:700">Dashboard</h2>
+      <span style="font-size:12px;color:var(--tx3)">Wednesday, Jan 15</span>
+    </div>
+    <div class="topbar-right">
+      <div class="search-box"><i class="fas fa-search"></i><input placeholder="Search leads, campaigns..."></div>
+      <button class="notif-btn" onclick="toast('3 new notifications','info')"><i class="fas fa-bell" style="font-size:13px"></i><span class="notif-dot"></span></button>
+    </div>
+  </div>
+  <div style="padding:24px 28px">
+    <!-- KPI Row -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px">
+      <div class="cd cd-p kpi kpi-am">
+        <div class="kpi-lbl">Calls Today</div>
+        <div class="kpi-val" id="k-calls">0</div>
+        <div class="kpi-chg" style="color:var(--gr)"><i class="fas fa-arrow-up" style="font-size:9px"></i> 12% vs avg</div>
+      </div>
+      <div class="cd cd-p kpi kpi-gr">
+        <div class="kpi-lbl">Meetings Booked</div>
+        <div class="kpi-val" id="k-meets">0</div>
+        <div class="kpi-chg" style="color:var(--gr)"><i class="fas fa-arrow-up" style="font-size:9px"></i> 8% vs avg</div>
+      </div>
+      <div class="cd cd-p kpi kpi-bl">
+        <div class="kpi-lbl">Connect Rate</div>
+        <div class="kpi-val" id="k-conn">0%</div>
+        <div class="kpi-chg" style="color:var(--rd)"><i class="fas fa-arrow-down" style="font-size:9px"></i> 2% vs avg</div>
+      </div>
+      <div class="cd cd-p kpi kpi-pp">
+        <div class="kpi-lbl">Pipeline $</div>
+        <div class="kpi-val" id="k-pipe">$0</div>
+        <div class="kpi-chg" style="color:var(--gr)"><i class="fas fa-arrow-up" style="font-size:9px"></i> 22% vs last wk</div>
+      </div>
+      <div class="cd cd-p kpi kpi-am">
+        <div class="kpi-lbl">Avg Talk Time</div>
+        <div class="kpi-val" id="k-talk">0:00</div>
+        <div class="kpi-chg" style="color:var(--tx3)"><i class="fas fa-minus" style="font-size:9px"></i> Same</div>
+      </div>
+    </div>
+    <!-- Charts -->
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:24px">
+      <div class="cd cd-p"><h4 style="font-size:13px;font-weight:600;margin-bottom:14px">Weekly Activity</h4><div style="height:200px"><canvas id="chWeekly"></canvas></div></div>
+      <div class="cd cd-p"><h4 style="font-size:13px;font-weight:600;margin-bottom:14px">Outcomes Today</h4><div style="height:200px"><canvas id="chOutcomes"></canvas></div></div>
+    </div>
+    <!-- Today's Queue + Recent -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="cd cd-p">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h4 style="font-size:13px;font-weight:600">Today's Call Queue</h4>
+          <span style="font-size:11px;color:var(--am);cursor:pointer;font-weight:600" onclick="go('leads')">View All →</span>
+        </div>
+        <div id="dashQueue"></div>
+      </div>
+      <div class="cd cd-p">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h4 style="font-size:13px;font-weight:600">Recent Calls</h4>
+          <span style="font-size:11px;color:var(--am);cursor:pointer;font-weight:600" onclick="go('reviews')">View All →</span>
+        </div>
+        <div id="dashRecent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CALL CONSOLE ═══════════════ -->
+<div class="view on" id="v-console">
+  <div class="console-grid solo">
+    <!-- LEFT: Lead Profile (disabled in this test build) -->
+    <div class="console-left" id="consoleLeft" style="display:none">
+      <div style="text-align:center;padding:8px 0 20px;border-bottom:1px solid var(--border)">
+        <div class="lp-avatar" style="margin:0 auto 10px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff" id="cAvatar">SC</div>
+        <div style="font-weight:700;font-size:15px" id="cName">Select a Lead</div>
+        <div style="font-size:12px;color:var(--tx3)" id="cTitle">—</div>
+        <div style="margin-top:8px"><span class="bg bg-new" id="cStatus">No Call</span></div>
+      </div>
+      <div style="padding:12px 0" id="cFields">
+        <div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Contact Info</div>
+        <div class="lp-field"><span class="lp-field-l">Company</span><span class="lp-field-v" id="cCompany">—</span></div>
+        <div class="lp-field"><span class="lp-field-l">Email</span><span class="lp-field-v" id="cEmail">—</span></div>
+        <div class="lp-field"><span class="lp-field-l">Phone</span><span class="lp-field-v" id="cPhone">—</span></div>
+        <div class="lp-field"><span class="lp-field-l">Industry</span><span class="lp-field-v" id="cIndustry">—</span></div>
+        <div class="lp-field" style="border:none"><span class="lp-field-l">Location</span><span class="lp-field-v" id="cLocation">—</span></div>
+      </div>
+      <!-- Enrichment -->
+      <div style="padding:12px 0;border-top:1px solid var(--border)" id="cEnrich">
+        <div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Signals</div>
+        <div id="cSignals" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+      </div>
+      <!-- History -->
+      <div style="padding:12px 0;border-top:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Activity History</div>
+        <div id="cHistory"></div>
+      </div>
+      <!-- Lead selector -->
+      <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border)">
+        <select id="leadSel" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--tx);padding:8px 10px;border-radius:8px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none" onchange="selectLead(this.value)">
+          <option value="">Choose lead to call...</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- CENTER: Call -->
+    <div class="console-center">
+      <!-- Connection settings -->
+      <div class="conn-bar">
+        <input id="connUrl" placeholder="Server URL (wss://your-project.livekit.cloud)" style="flex:1;min-width:220px">
+        <input id="connToken" placeholder="Access token (from Colab tester-token cell)" style="flex:2;min-width:280px">
+        <button class="bt bt-gh bt-sm" onclick="saveConnSettings()"><i class="fas fa-floppy-disk"></i> Save</button>
+      </div>
+      <!-- Call header -->
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg1)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="callIndicator" style="width:10px;height:10px;border-radius:50%;background:var(--tx3)"></div>
+          <span style="font-size:13px;font-weight:600" id="callPhase">Idle</span>
+          <span style="font-size:12px;color:var(--tx3)" id="callTimer">00:00</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="bt bt-am bt-sm" id="btnCall" onclick="startCall()"><i class="fas fa-phone"></i> Start Call</button>
+          <button class="bt bt-rd bt-sm" id="btnEnd" onclick="endCall()" disabled><i class="fas fa-phone-slash"></i> End</button>
+          <button class="bt bt-gh bt-icon bt-sm" id="btnMute" onclick="toggleMute()" disabled title="Mute"><i class="fas fa-microphone"></i></button>
+        </div>
+      </div>
+      <!-- Waveform -->
+      <div style="padding:8px 20px;background:var(--bg1);border-bottom:1px solid var(--border)">
+        <canvas id="waveCanvas" height="80"></canvas>
+      </div>
+      <audio id="remoteAudio" autoplay style="display:none"></audio>
+      <!-- Metrics strip -->
+      <div style="padding:10px 20px;background:var(--bg1);border-bottom:1px solid var(--border)">
+        <div class="metric-strip">
+          <div class="metric-cell"><div class="metric-val" style="color:var(--am)" id="mTalkRatio">0:0</div><div class="metric-lbl">Talk Ratio</div></div>
+          <div class="metric-cell"><div class="metric-val" style="color:var(--gr)" id="mSentiment">—</div><div class="metric-lbl">Sentiment</div></div>
+          <div class="metric-cell"><div class="metric-val" style="color:var(--bl)" id="mState">Idle</div><div class="metric-lbl">Dialog State</div></div>
+          <div class="metric-cell"><div class="metric-val" style="color:var(--pp)" id="mObjections">0</div><div class="metric-lbl">Objections</div></div>
+        </div>
+      </div>
+      <!-- Transcript -->
+      <div class="tx-area" id="txArea">
+        <div style="text-align:center;padding:60px 20px;color:var(--tx3)">
+          <i class="fas fa-headset" style="font-size:36px;display:block;margin-bottom:12px;opacity:.2"></i>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;color:var(--tx2)">No Active Call</div>
+          <div style="font-size:12px">Select a lead and click Start Call to begin</div>
+        </div>
+      </div>
+      <!-- Live audio note -->
+      <div class="call-bar">
+        <div style="font-size:11px;color:var(--tx3);text-align:center">Live two-way audio only — speak into your microphone, no text input in this test build.</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: AI Coach (disabled in this test build) -->
+    <div class="console-right" id="consoleRight" style="display:none">
+      <div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <i class="fas fa-brain" style="color:var(--am)"></i> AI Coach
+      </div>
+      <div id="coachArea">
+        <div class="coach-card coach-card-info">
+          <div class="coach-title" style="color:var(--bl)"><i class="fas fa-circle-info"></i> Getting Started</div>
+          <div class="coach-text">Select a lead from the left panel and start a call. The AI coach will provide real-time suggestions, objection handling scripts, and talk ratio guidance.</div>
+        </div>
+      </div>
+      <!-- Disposition -->
+      <div id="dispoArea" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Call Disposition</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <button class="bt bt-gr bt-sm" onclick="dispo('meeting')"><i class="fas fa-calendar-check"></i> Meeting</button>
+          <button class="bt bt-bl bt-sm" onclick="dispo('nurture')"><i class="fas fa-envelope"></i> Nurture</button>
+          <button class="bt bt-am bt-sm" onclick="dispo('callback')"><i class="fas fa-redo"></i> Callback</button>
+          <button class="bt bt-rd bt-sm" onclick="dispo('no_fit')"><i class="fas fa-xmark"></i> No Fit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CAMPAIGNS ═══════════════ -->
+<div class="view" id="v-campaigns">
+  <div class="topbar">
+    <div class="topbar-left"><h2 style="font-size:17px;font-weight:700">Campaigns</h2><span style="font-size:12px;color:var(--tx3)">4 active sequences</span></div>
+    <div class="topbar-right"><button class="bt bt-am" onclick="toast('Campaign builder coming soon','info')"><i class="fas fa-plus"></i> New Campaign</button></div>
+  </div>
+  <div style="padding:24px 28px" id="campGrid"></div>
+</div>
+
+<!-- ═══════════════ LEADS ═══════════════ -->
+<div class="view" id="v-leads">
+  <div class="topbar">
+    <div class="topbar-left"><h2 style="font-size:17px;font-weight:700">Lead Pipeline</h2><span style="font-size:12px;color:var(--tx3)" id="leadCount">0 leads</span></div>
+    <div class="topbar-right">
+      <div style="display:flex;gap:4px" id="leadFilters"></div>
+      <button class="bt bt-am" onclick="openModal('addModal')"><i class="fas fa-plus"></i> Add Lead</button>
+    </div>
+  </div>
+  <div style="padding:0 28px 28px">
+    <div style="display:grid;grid-template-columns:2fr 1.2fr 1.2fr .8fr .7fr .7fr 120px;gap:0;font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:12px 16px;border-bottom:2px solid var(--border);position:sticky;top:56px;background:var(--bg0);z-index:10">
+      <div>Lead</div><div>Company</div><div>Title</div><div>Status</div><div>Score</div><div>Sequence</div><div>Actions</div>
+    </div>
+    <div id="leadsBody"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ CALL REVIEWS ═══════════════ -->
+<div class="view" id="v-reviews">
+  <div class="topbar">
+    <div class="topbar-left"><h2 style="font-size:17px;font-weight:700">Call Reviews</h2><span style="font-size:12px;color:var(--tx3)">AI-analyzed call recordings</span></div>
+    <div class="topbar-right">
+      <div style="display:flex;gap:4px">
+        <button class="bt bt-gh bt-sm rev-filter on" data-f="all" onclick="filterRev('all',this)">All</button>
+        <button class="bt bt-gh bt-sm rev-filter" data-f="meeting" onclick="filterRev('meeting',this)">Meetings</button>
+        <button class="bt bt-gh bt-sm rev-filter" data-f="nurture" onclick="filterRev('nurture',this)">Nurture</button>
+        <button class="bt bt-gh bt-sm rev-filter" data-f="no_fit" onclick="filterRev('no_fit',this)">No Fit</button>
+      </div>
+    </div>
+  </div>
+  <div style="padding:24px 28px" id="revGrid"></div>
+</div>
+
+</div><!-- /mn -->
+
+<!-- Add Lead Modal -->
+<div class="modal-bg" id="addModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h3 style="font-size:16px;font-weight:700">Add Lead</h3>
+      <button onclick="closeModal('addModal')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:16px"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div style="display:grid;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>Full Name</label><input id="nName" placeholder="Jane Smith"></div>
+        <div><label>Email</label><input id="nEmail" placeholder="jane@co.com"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>Company</label><input id="nCo" placeholder="Acme Corp"></div>
+        <div><label>Title</label><input id="nTitle" placeholder="VP Sales"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>Phone</label><input id="nPhone" placeholder="+1 555-0123"></div>
+        <div><label>Industry</label><select id="nInd"><option>SaaS</option><option>Fintech</option><option>Healthcare</option><option>E-commerce</option><option>Manufacturing</option><option>Education</option><option>Real Estate</option></select></div>
+      </div>
+      <button class="bt bt-am" style="width:100%;margin-top:6px;padding:10px" onclick="addLead()">Add to Pipeline</button>
+    </div>
+  </div>
+</div>
+
+<!-- Call Detail Modal -->
+<div class="modal-bg" id="detailModal">
+  <div class="modal" style="max-width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h3 style="font-size:16px;font-weight:700">Call Detail</h3>
+      <button onclick="closeModal('detailModal')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:16px"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// LIVEKIT CONNECTION (real voice pipeline test)
+// ═══════════════════════════════════════════════
+let S = {calling:false, startTime:null, timerInt:null, muted:false};
+let room = null;
+let localAnalyser = null, remoteAnalyser = null, audioCtx = null;
+let txCleared = false;
+
+function notAvailable(){toast('Not available in this test build — only the live call test is wired up','info')}
+
+function getConnSettings(){
+  return {
+    url: (document.getElementById('connUrl').value || localStorage.getItem('sdr_lk_url') || '').trim(),
+    token: (document.getElementById('connToken').value || localStorage.getItem('sdr_lk_token') || '').trim(),
+  };
+}
+function saveConnSettings(){
+  const url = document.getElementById('connUrl').value.trim();
+  const token = document.getElementById('connToken').value.trim();
+  if(url) localStorage.setItem('sdr_lk_url', url);
+  if(token) localStorage.setItem('sdr_lk_token', token);
+  toast('Connection settings saved locally','ok');
+}
+function loadConnSettingsIntoInputs(){
+  const url = localStorage.getItem('sdr_lk_url'); const token = localStorage.getItem('sdr_lk_token');
+  if(url) document.getElementById('connUrl').value = url;
+  if(token) document.getElementById('connToken').value = token;
+}
+
+function addMsg(who, text){
+  if(!txCleared){document.getElementById('txArea').innerHTML='';txCleared=true}
+  const a=document.getElementById('txArea');const d=document.createElement('div');
+  d.className='tx-msg'+(who==='user'?' right':'');
+  const now=new Date();const ts=now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
+  const avaBg=who==='ai'?'linear-gradient(135deg,var(--am),var(--am2))':'linear-gradient(135deg,#3b82f6,#1d4ed8)';
+  const avaTxt=who==='ai'?'AI':'ME';
+  d.innerHTML=`<div class="tx-ava" style="background:${avaBg};color:${who==='ai'?'#000':'#fff'}">${avaTxt}</div><div><div class="tx-bub">${text}</div><div class="tx-time">${ts}</div></div>`;
+  a.appendChild(d);a.scrollTop=a.scrollHeight;
+}
+
+async function startCall(){
+  const {url, token} = getConnSettings();
+  if(!url || !token){toast('Set Server URL and Access Token above first','err');return}
+
+  document.getElementById('btnCall').disabled=true;
+  document.getElementById('callPhase').textContent='Connecting…';document.getElementById('callPhase').style.color='var(--tx2)';
+
+  room = new LivekitClient.Room();
+  txCleared = false;
+
+  room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+    if(track.kind === LivekitClient.Track.Kind.Audio){
+      track.attach(document.getElementById('remoteAudio'));
+      audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+      remoteAnalyser = audioCtx.createAnalyser();remoteAnalyser.fftSize=256;
+      src.connect(remoteAnalyser);
+      wave.state='speaking';
+      document.getElementById('callPhase').textContent='Agent Connected';document.getElementById('callPhase').style.color='var(--am)';
+    }
+  });
+
+  room.on(LivekitClient.RoomEvent.TranscriptionReceived, (segments, participant) => {
+    segments.forEach(seg => {
+      if(!seg.final) return;
+      const who = participant && participant.isLocal ? 'user' : 'ai';
+      addMsg(who, seg.text);
+    });
+  });
+
+  room.on(LivekitClient.RoomEvent.Disconnected, () => {
+    if(S.calling) endCall();
+  });
+
+  try{
+    await room.connect(url, token);
+    const micPub = await room.localParticipant.setMicrophoneEnabled(true);
+    if(micPub && micPub.track){
+      audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(new MediaStream([micPub.track.mediaStreamTrack]));
+      localAnalyser = audioCtx.createAnalyser();localAnalyser.fftSize=256;
+      src.connect(localAnalyser);
+    }
+  }catch(e){
+    toast('Connection failed: '+e.message,'err');
+    document.getElementById('btnCall').disabled=false;
+    document.getElementById('callPhase').textContent='Idle';document.getElementById('callPhase').style.color='';
+    room=null;
+    return;
+  }
+
+  S.calling=true;S.startTime=Date.now();S.muted=false;
+  document.getElementById('btnEnd').disabled=false;
+  document.getElementById('btnMute').disabled=false;
+  document.getElementById('btnMute').innerHTML='<i class="fas fa-microphone"></i>';
+  document.getElementById('callIndicator').className='live-dot';
+  wave.state='listening';
+  S.timerInt=setInterval(updateTimer,1000);
+  toast('Connected — waiting for the agent to join','ok');
+}
+
+async function endCall(){
+  S.calling=false;clearInterval(S.timerInt);wave.state='idle';
+  localAnalyser=null;remoteAnalyser=null;
+  if(room){try{await room.disconnect()}catch(e){}room=null}
+  document.getElementById('btnCall').disabled=false;document.getElementById('btnEnd').disabled=true;
+  document.getElementById('btnMute').disabled=true;
+  document.getElementById('callIndicator').style.background='var(--tx3)';
+  document.getElementById('callPhase').textContent='Call Ended';document.getElementById('callPhase').style.color='var(--tx3)';
+}
+
+async function toggleMute(){
+  if(!room) return;
+  S.muted=!S.muted;
+  await room.localParticipant.setMicrophoneEnabled(!S.muted);
+  const b=document.getElementById('btnMute');
+  if(S.muted){b.innerHTML='<i class="fas fa-microphone-slash" style="color:var(--rd)"></i>'}
+  else{b.innerHTML='<i class="fas fa-microphone"></i>'}
+}
+
+function updateTimer(){if(!S.startTime)return;const e=Math.floor((Date.now()-S.startTime)/1000);document.getElementById('callTimer').textContent=String(Math.floor(e/60)).padStart(2,'0')+':'+String(e%60).padStart(2,'0')}
+
+function go(v){document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.sb-btn[data-view]').forEach(x=>x.classList.remove('on'));
+  const el=document.getElementById('v-'+v);if(el)el.classList.add('on');const btn=document.querySelector(`.sb-btn[data-view="${v}"]`);if(btn)btn.classList.add('on');}
+
+function toast(msg,type='info'){const c=document.getElementById('toastC');const d=document.createElement('div');d.className='toast toast-'+type;
+  d.innerHTML=`<i class="fas ${type==='ok'?'fa-check-circle':type==='err'?'fa-exclamation-circle':'fa-info-circle'}"></i>${msg}`;c.appendChild(d);
+  setTimeout(()=>{d.style.opacity='0';d.style.transition='opacity .3s';setTimeout(()=>d.remove(),300)},3000)}
+
+class Waveform{
+  constructor(c){this.c=c;this.x=c.getContext('2d');this.n=80;this.v=new Array(this.n).fill(0);this.tg=new Array(this.n).fill(0);this.t=0;this.state='idle';this.dpr=window.devicePixelRatio||1;this.resize();window.addEventListener('resize',()=>this.resize());this.loop()}
+  resize(){const r=this.c.getBoundingClientRect();this.c.width=r.width*this.dpr;this.c.height=r.height*this.dpr;this.x.scale(this.dpr,this.dpr);this.w=r.width;this.h=r.height}
+  loop(){this.t+=.016;for(let i=0;i<this.n;i++)this.v[i]+=(this.tg[i]-this.v[i])*.14;
+    if(this.state==='speaking'&&remoteAnalyser){
+      const data=new Uint8Array(remoteAnalyser.frequencyBinCount);remoteAnalyser.getByteFrequencyData(data);
+      const level=data.reduce((a,b)=>a+b,0)/data.length;
+      for(let i=0;i<this.n;i++)this.tg[i]=Math.max(2,level*.5+Math.random()*8)
+    } else if(this.state==='listening'&&localAnalyser){
+      const data=new Uint8Array(localAnalyser.frequencyBinCount);localAnalyser.getByteFrequencyData(data);
+      const level=data.reduce((a,b)=>a+b,0)/data.length;
+      for(let i=0;i<this.n;i++)this.tg[i]=Math.max(1.5,level*.35+Math.random()*4)
+    } else{for(let i=0;i<this.n;i++)this.tg[i]=1.5+Math.sin(this.t*1.2+i*.18)*1}
+    this.draw();requestAnimationFrame(()=>this.loop())}
+  draw(){const{x,w,h,n,v}=this;x.clearRect(0,0,w,h);const cy=h/2;
+    for(let i=0;i<n;i++){const bw=w/n;const bh=Math.max(0,v[i]);
+      const col=this.state==='speaking'?`rgba(245,166,35,${.35+bh/60*.65})`:this.state==='listening'?`rgba(59,130,246,${.3+bh/20*.7})`:'rgba(90,107,138,.15)';
+      x.fillStyle=col;x.beginPath();x.roundRect(i*bw+1,cy-bh/2,bw-2,bh,2);x.fill()}}
+}
+let wave;
+
+function init(){
+  wave=new Waveform(document.getElementById('waveCanvas'));
+  loadConnSettingsIntoInputs();
+}
+init();
+</script>
+</body>
+</html>
