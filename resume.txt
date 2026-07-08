@@ -3,7 +3,8 @@ RESUME FILE — Sales Outreach Voice Agent (SDR Colab Prototype)
 
 WHAT THIS PROJECT IS
 ---------------------
-A single Google Colab notebook (sdr_voice_agent.ipynb) implementing a fully
+A single Google Colab notebook (colab/sdr_voice_agent.ipynb — moved here
+from the repo root; still git-ignored) implementing a fully
 self-hosted, conversational outbound-SDR voice agent using LiveKit Agents:
 - STT: whisper-large-v3-turbo via faster-whisper (in-process)
 - LLM: Qwen2.5-7B-Instruct served by Ollama (localhost:11434, OpenAI-compatible)
