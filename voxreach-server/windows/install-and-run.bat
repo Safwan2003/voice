@@ -39,7 +39,7 @@ if %errorlevel% neq 0 (
 :: --- Step 1: is WSL2 installed at all? ---
 wsl --status >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [1/6] WSL2 not found. Installing WSL2 + Ubuntu...
+    echo [1/5] WSL2 not found. Installing WSL2 + Ubuntu...
     wsl --install -d Ubuntu
     echo.
     echo ============================================================
@@ -50,42 +50,36 @@ if %errorlevel% neq 0 (
     pause
     exit /b 0
 )
-echo [1/6] WSL2 is installed.
+echo [1/5] WSL2 is installed.
 
-:: --- Step 2: is the Ubuntu distro registered? ---
-wsl -l -q | findstr /i "Ubuntu" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [2/6] Installing Ubuntu in WSL2...
-    wsl --install -d Ubuntu
-    echo.
-    echo ============================================================
-    echo  Ubuntu is installing. A window may open asking you to create
-    echo  a Linux username and password - do that now.
-    echo  Once it finishes, double-click this file again.
-    echo ============================================================
-    pause
-    exit /b 0
-)
-echo [2/6] Ubuntu is installed in WSL2.
-
-:: --- Step 3: has Ubuntu completed its first-run user setup? ---
+:: --- Step 2: is Ubuntu installed AND ready to use? ---
+:: Deliberately not parsing "wsl -l" text output here: wsl.exe pipes output
+:: as UTF-16LE, which silently breaks findstr matching even when the name
+:: is visibly right there. Instead, just try to actually run something in
+:: the distro and trust the exit code - that's a more direct signal anyway
+:: (it also catches "installed but never had its first-run user created"
+:: as a single case, rather than two separate checks).
 wsl -d Ubuntu -- true >nul 2>&1
-if %errorlevel% neq 0 (
-    echo.
-    echo ============================================================
-    echo  Ubuntu needs its one-time first launch to finish setup.
-    echo  1. Open a new window and run: wsl -d Ubuntu
-    echo  2. Follow the prompts to create a Linux username/password.
-    echo  3. Once you see a Linux command prompt, close that window
-    echo     and double-click this file again.
-    echo ============================================================
-    pause
-    exit /b 0
+if %errorlevel% equ 0 (
+    echo [2/5] Ubuntu is installed and ready.
+    goto :ubuntu_ready
 )
-echo [3/6] Ubuntu is ready.
 
-:: --- Step 4: check GPU is visible inside WSL2 (warn, don't block) ---
-echo [4/6] Checking GPU visibility inside WSL2...
+echo [2/5] Ubuntu not found or not finished setting up. Installing/launching...
+wsl --install -d Ubuntu
+echo.
+echo ============================================================
+echo  If a window opened asking you to create a Linux username and
+echo  password, do that now, then close that window.
+echo  Once done, double-click this file again.
+echo ============================================================
+pause
+exit /b 0
+
+:ubuntu_ready
+
+:: --- Step 3: check GPU is visible inside WSL2 (warn, don't block) ---
+echo [3/5] Checking GPU visibility inside WSL2...
 wsl -d Ubuntu -- bash -c "nvidia-smi" >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
@@ -97,14 +91,14 @@ if %errorlevel% neq 0 (
     echo.
 )
 
-:: --- Step 5: install prerequisites + clone/update the repo inside WSL2 ---
+:: --- Step 4: install prerequisites + clone/update the repo inside WSL2 ---
 :: Done via a tracked bootstrap.sh (fetched from the repo) rather than a
 :: long inline command here, so it's not fighting cmd.exe's quoting rules.
-echo [5/6] Making sure curl is available inside WSL2...
+echo [4/5] Making sure curl is available inside WSL2...
 wsl -d Ubuntu -- sudo apt-get update -y
 wsl -d Ubuntu -- sudo apt-get install -y curl
 
-echo [5/6] Running the setup script inside WSL2 (this can take several
+echo [4/5] Running the setup script inside WSL2 (this can take several
 echo       minutes the first time - Python packages, vLLM, etc.)...
 echo.
 wsl -d Ubuntu -- bash -c "curl -fsSL https://raw.githubusercontent.com/Safwan2003/voice/main/voxreach-server/windows/bootstrap.sh | bash"
@@ -115,10 +109,10 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
-echo [5/6] Setup complete.
+echo [4/5] Setup complete.
 
-:: --- Step 6: run it ---
-echo [6/6] Starting Voxreach (vLLM + livekit-server + worker + UI)...
+:: --- Step 5: run it ---
+echo [5/5] Starting Voxreach (vLLM + livekit-server + worker + UI)...
 echo       This may take a while the first time - vLLM has to load the
 echo       model, and Whisper/OmniVoice models download on first use.
 echo.
