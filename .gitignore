@@ -1,3 +1,7 @@
 .superpowers/
 .ipynb_checkpoints/
 sdr_voice_agent.ipynb
+__pycache__/
+*.egg-info/
+.pytest_cache/
+
