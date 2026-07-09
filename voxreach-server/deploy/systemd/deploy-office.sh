@@ -3,19 +3,23 @@ set -eu
 
 # Deploys the worker, UI, and livekit-server to the office box as
 # systemd-managed services (Podman Quadlets for worker/UI, a native
-# process for livekit-server). Idempotent - safe to re-run after an
-# office.env edit or a repo update.
+# process for livekit-server). Idempotent - safe to re-run for a first
+# install, an office.env edit, or a CI-triggered redeploy after a new
+# image is pushed to GHCR (see .github/workflows/ci.yml's `deploy` job,
+# which runs this script on the office box's self-hosted runner on every
+# merge to main).
 #
 # Assumes: Podman + NVIDIA Container Toolkit already set up (see
-# ../../README.md step 1 of the "Deferred to a human" GPU checks), and a
+# ../../README.md step 1 of the "Deferred to a human" GPU checks), a
 # Cloudflare Tunnel already routing to this box (this script does not
-# touch cloudflared's config - see ../../README.md step 3).
+# touch cloudflared's config - see ../../README.md step 4), and
+# `podman login ghcr.io` already done so pulls succeed.
 #
 # Usage: sudo ./deploy-office.sh [path-to-office.env]
 # Default env file: /etc/sdr-agent/office.env
 
 if [ "$(id -u)" -ne 0 ]; then
-  echo "Must run as root (sudo) - installs systemd units and Quadlets." >&2
+  echo "Must run as root (sudo) - installs systemd units, Quadlets, and restarts services." >&2
   exit 1
 fi
 
@@ -29,7 +33,7 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-echo "[1/6] Checking $ENV_FILE for unfilled placeholders..."
+echo "[1/7] Checking $ENV_FILE for unfilled placeholders..."
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 MISSING=""
@@ -46,30 +50,48 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 
-echo "[2/6] Installing Podman Quadlets (worker + UI)..."
+echo "[2/7] Installing Podman Quadlets (worker + UI)..."
 mkdir -p /etc/containers/systemd
 cp "$REPO_ROOT/deploy/systemd/sdr-worker@.container" \
    "$REPO_ROOT/deploy/systemd/voxreach-ui.container" \
    /etc/containers/systemd/
+systemctl daemon-reload
 
-echo "[3/6] Installing livekit-server systemd unit..."
+echo "[3/7] Pulling latest worker/UI images..."
+# Quadlet's default Pull policy only fetches an image if none is cached
+# locally - it won't re-pull `:latest` on its own, so a plain `systemctl
+# restart` after a CI build wouldn't actually run the new image without
+# this. Image names are read from the Quadlet files rather than
+# hardcoded here, so this works unchanged regardless of which GHCR
+# org/repo the images are published under.
+WORKER_IMAGE="$(grep '^Image=' "$REPO_ROOT/deploy/systemd/sdr-worker@.container" | cut -d= -f2-)"
+UI_IMAGE="$(grep '^Image=' "$REPO_ROOT/deploy/systemd/voxreach-ui.container" | cut -d= -f2-)"
+podman pull "$WORKER_IMAGE"
+podman pull "$UI_IMAGE"
+
+echo "[4/7] Installing livekit-server systemd unit..."
 cp "$REPO_ROOT/deploy/systemd/livekit-server.service" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now livekit-server.service
+# enable (idempotent) then restart rather than `enable --now`: on an
+# already-running unit `--now` is just a `start`, a no-op that wouldn't
+# apply a config change. `restart` handles both first-run and redeploy.
+systemctl enable livekit-server.service
+systemctl restart livekit-server.service
 
-echo "[4/6] Creating Hugging Face weights cache directory (persists across image updates)..."
+echo "[5/7] Creating Hugging Face weights cache directory (persists across image updates)..."
 mkdir -p /opt/sdr-agent/hf-cache
 
-echo "[5/6] Starting the UI/token service..."
-systemctl enable --now voxreach-ui.service
+echo "[6/7] Restarting the UI/token service..."
+systemctl enable voxreach-ui.service
+systemctl restart voxreach-ui.service
 
-echo "[6/6] Starting worker instance(s) (OFFICE_NUM_WORKERS=${OFFICE_NUM_WORKERS:-1})..."
+echo "[7/7] Restarting worker instance(s) (OFFICE_NUM_WORKERS=${OFFICE_NUM_WORKERS:-1})..."
 "$REPO_ROOT/deploy/systemd/scale-workers.sh" "$ENV_FILE"
 
 echo ""
-echo "Deployed. First worker start downloads STT/TTS weights into"
+echo "Deployed. First-ever worker start downloads STT/TTS weights into"
 echo "/opt/sdr-agent/hf-cache - watch progress with:"
 echo "  journalctl -u sdr-worker@1.service -f"
 echo ""
-echo "Remaining manual step (not automated here): add ingress rules to"
-echo "cloudflared's config.yml - see README.md 'Deploy to production' step 3."
+echo "One-time manual step (not automated here): add ingress rules to"
+echo "cloudflared's config.yml - see README.md 'Deploy to production' step 4."

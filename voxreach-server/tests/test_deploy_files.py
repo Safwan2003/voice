@@ -103,9 +103,12 @@ def test_scale_workers_enables_one_instance_per_configured_worker(tmp_path):
     assert result.returncode == 0, result.stderr
     logged_calls = log_file.read_text().splitlines()
     assert logged_calls == [
-        "enable --now sdr-worker@1.service",
-        "enable --now sdr-worker@2.service",
-        "enable --now sdr-worker@3.service",
+        "enable sdr-worker@1.service",
+        "restart sdr-worker@1.service",
+        "enable sdr-worker@2.service",
+        "restart sdr-worker@2.service",
+        "enable sdr-worker@3.service",
+        "restart sdr-worker@3.service",
     ]
 
 
@@ -187,6 +190,12 @@ def test_deploy_office_script_has_valid_shell_syntax_and_checks_placeholders():
     assert "CHANGE_ME" in content
     assert "LIVEKIT_TURN_HOST" in content
     assert "scale-workers.sh" in content
+    # Must explicitly pull before restarting - Quadlet's default Pull
+    # policy won't re-fetch `:latest` on its own, so a CI-triggered
+    # redeploy would silently keep running the old image without this.
+    assert "podman pull" in content
+    assert "systemctl restart livekit-server.service" in content
+    assert "systemctl restart voxreach-ui.service" in content
 
 
 def test_worker_containerfile_builds_from_cuda_and_does_not_bake_weights():
