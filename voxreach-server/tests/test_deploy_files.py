@@ -129,3 +129,18 @@ def test_livekit_server_template_renders_to_valid_yaml_with_tls_and_keys(tmp_pat
     )
     assert rendered["rtc"]["tcp_port"] == 7881
     assert rendered["rtc"]["use_external_ip"] is True
+
+
+def test_worker_containerfile_builds_from_cuda_and_does_not_bake_weights():
+    containerfile = _read("container/worker.Containerfile")
+
+    assert "FROM" in containerfile and "cuda" in containerfile.lower()
+    assert "pip install" in containerfile
+    assert "ENTRYPOINT" in containerfile
+    assert "sdr_agent.worker" in containerfile
+    # Model weights must never be COPY'd into the image — they're
+    # mounted from the host at runtime (see HF_HOME below).
+    assert "COPY" not in containerfile.split("ENTRYPOINT")[0].replace(
+        "COPY pyproject.toml", ""
+    ).replace("COPY src", "")
+    assert "HF_HOME" in containerfile
