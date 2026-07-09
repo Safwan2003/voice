@@ -523,9 +523,9 @@ function saveConnSettings(){
   toast('Connection settings saved locally','ok');
 }
 function loadConnSettingsIntoInputs(){
-  // URL query params (?url=...&token=...) take priority — this is how
-  // start.sh hands back a ready-to-click link after generating a test
-  // token, without the user having to copy/paste anything manually.
+  // URL query params (?url=...&token=...) take priority — this lets a
+  // ready-to-click link (e.g. from scripts/generate-test-token.py) fill
+  // in the connection fields without the user copy/pasting manually.
   const params = new URLSearchParams(window.location.search);
   const url = params.get('url') || localStorage.getItem('sdr_lk_url');
   const token = params.get('token') || localStorage.getItem('sdr_lk_token');
