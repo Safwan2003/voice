@@ -8,6 +8,7 @@ container (deploy/container/ui.Containerfile) that never needs the
 worker's CUDA/torch/faster-whisper dependencies.
 """
 
+import hmac
 import os
 import uuid
 from pathlib import Path
@@ -32,7 +33,7 @@ def create_app() -> Flask:
             return jsonify(error="UI_ACCESS_SECRET is not configured on the server"), 500
 
         payload = request.get_json(silent=True) or {}
-        if payload.get("secret") != expected_secret:
+        if not hmac.compare_digest(str(payload.get("secret", "")), expected_secret):
             return jsonify(error="Invalid secret"), 401
 
         api_key = os.environ.get("LIVEKIT_API_KEY")
