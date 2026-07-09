@@ -1,0 +1,16 @@
+[Unit]
+Description=Voxreach browser tester + token endpoint
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/safwan2003/voice/sdr-ui:latest
+EnvironmentFile=/etc/sdr-agent/office.env
+PublishPort=8080:8080
+
+[Service]
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

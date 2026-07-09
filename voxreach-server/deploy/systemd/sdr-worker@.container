@@ -1,0 +1,17 @@
+[Unit]
+Description=SDR voice agent worker (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/safwan2003/voice/sdr-worker:latest
+EnvironmentFile=/etc/sdr-agent/office.env
+Volume=/opt/sdr-agent/hf-cache:/root/.cache/huggingface:Z
+AddDevice=nvidia.com/gpu=all
+
+[Service]
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

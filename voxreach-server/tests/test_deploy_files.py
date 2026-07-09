@@ -43,13 +43,29 @@ def test_vllm_service_was_removed():
     assert not (DEPLOY_DIR / "systemd" / "vllm.service").exists()
 
 
-def test_sdr_worker_service_reads_env_file_and_restarts_on_failure():
-    unit = _read("systemd/sdr-worker@.service")
+def test_sdr_worker_quadlet_pulls_image_mounts_hf_cache_and_restarts():
+    unit = _read("systemd/sdr-worker@.container")
 
+    assert "Image=ghcr.io/safwan2003/voice/sdr-worker:latest" in unit
     assert "EnvironmentFile=/etc/sdr-agent/office.env" in unit
+    assert "AddDevice=nvidia.com/gpu=all" in unit
+    assert "Volume=" in unit and "huggingface" in unit
     assert "Restart=on-failure" in unit
-    assert "sdr_agent.worker" in unit
-    assert "vllm" not in unit.lower()
+
+
+def test_ui_quadlet_publishes_port_and_restarts():
+    unit = _read("systemd/voxreach-ui.container")
+
+    assert "Image=ghcr.io/safwan2003/voice/sdr-ui:latest" in unit
+    assert "EnvironmentFile=/etc/sdr-agent/office.env" in unit
+    assert "PublishPort=" in unit
+    assert "Restart=on-failure" in unit
+
+
+def test_worker_service_file_was_removed():
+    # Replaced by the Quadlet above - the worker is now a container, not
+    # a bare `python -m sdr_agent.worker` process.
+    assert not (DEPLOY_DIR / "systemd" / "sdr-worker@.service").exists()
 
 
 def test_scale_workers_enables_one_instance_per_configured_worker(tmp_path):
