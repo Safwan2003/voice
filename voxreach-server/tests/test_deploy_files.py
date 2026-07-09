@@ -30,7 +30,12 @@ def test_office_env_example_covers_all_config_vars():
 
     env_vars = _parse_env_file(_read("env/office.env.example"))
 
-    deploy_only_vars = {"OFFICE_NUM_WORKERS", "OFFICE_DOMAIN"}
+    deploy_only_vars = {
+        "OFFICE_NUM_WORKERS",
+        "OFFICE_DOMAIN",
+        "UI_PORT",
+        "UI_ACCESS_SECRET",
+    }
     expected = set(REQUIRED_ENV_VARS) | set(OPTIONAL_ENV_VARS) | deploy_only_vars
 
     assert expected.issubset(env_vars.keys())
