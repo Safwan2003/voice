@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: voxreach-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -v
+
+  build:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: voxreach-server
+          file: voxreach-server/deploy/container/worker.Containerfile
+          push: true
+          tags: |
+            ghcr.io/safwan2003/voice/sdr-worker:latest
+            ghcr.io/safwan2003/voice/sdr-worker:${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: voxreach-server
+          file: voxreach-server/deploy/container/ui.Containerfile
+          push: true
+          tags: |
+            ghcr.io/safwan2003/voice/sdr-ui:latest
+            ghcr.io/safwan2003/voice/sdr-ui:${{ github.sha }}
