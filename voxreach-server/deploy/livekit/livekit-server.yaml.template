@@ -3,14 +3,24 @@ rtc:
   tcp_port: 7881
   port_range_start: 50000
   port_range_end: 60000
-  use_external_ip: true
+  # The office network has no forwarded UDP path (Cloudflare Tunnel is the
+  # only inbound route), so advertising the box's own IP as an ICE
+  # candidate is useless - clients would never reach it. Media instead
+  # relays through the external TURN server below, which does have a real
+  # public IP.
+  use_external_ip: false
+  turn_servers:
+    - host: ${LIVEKIT_TURN_HOST}
+      port: 5349
+      protocol: tls
+      username: ${LIVEKIT_TURN_USERNAME}
+      credential: ${LIVEKIT_TURN_CREDENTIAL}
 
 keys:
   ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
 
-tls:
-  cert_file: /etc/letsencrypt/live/${OFFICE_DOMAIN}/fullchain.pem
-  key_file: /etc/letsencrypt/live/${OFFICE_DOMAIN}/privkey.pem
-
+# No tls: block here on purpose - Cloudflare Tunnel terminates TLS at the
+# edge for the wss:// hostname and forwards plain ws:// to this port
+# locally, so livekit-server never needs its own certificate.
 logging:
   level: info

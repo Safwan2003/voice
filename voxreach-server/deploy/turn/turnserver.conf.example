@@ -1,0 +1,46 @@
+# coturn config for the external TURN relay VPS.
+#
+# Runs on its own small cloud VPS (NOT the office server) — a $5-6/mo box
+# with a real public IPv4 is enough, no GPU needed. This exists because
+# the office network only has Cloudflare Tunnel inbound (no forwarded
+# UDP), so WebRTC call media can't reach the office box directly. This
+# VPS gives clients a real public IP to relay media through instead.
+#
+# Setup (Debian/Ubuntu):
+#   sudo apt install coturn
+#   sudo cp turnserver.conf.example /etc/turnserver.conf
+#   # edit YOUR.VPS.PUBLIC.IP, turn.example-office.com, and the
+#   # username:password line below (must match LIVEKIT_TURN_USERNAME /
+#   # LIVEKIT_TURN_CREDENTIAL in office.env)
+#   sudo certbot certonly --standalone -d turn.example-office.com
+#   sudo systemctl enable --now coturn
+
+listening-port=3478
+tls-listening-port=5349
+
+# Both must be this VPS's actual public IP.
+relay-ip=YOUR.VPS.PUBLIC.IP
+external-ip=YOUR.VPS.PUBLIC.IP
+
+min-port=49152
+max-port=65535
+
+fingerprint
+lt-cred-mech
+realm=turn.example-office.com
+
+# Static long-lived credential — one pair, no rotation needed. Must match
+# LIVEKIT_TURN_USERNAME:LIVEKIT_TURN_CREDENTIAL in the office server's
+# office.env exactly.
+user=CHANGE_ME:CHANGE_ME
+
+# Real cert on this VPS's own domain (separate from the office server's
+# Cloudflare-Tunnel-fronted hostnames — this box has a public IP, so a
+# normal HTTP-01 Let's Encrypt cert works directly, no DNS challenge
+# needed).
+cert=/etc/letsencrypt/live/turn.example-office.com/fullchain.pem
+pkey=/etc/letsencrypt/live/turn.example-office.com/privkey.pem
+
+no-cli
+no-tlsv1
+no-tlsv1_1

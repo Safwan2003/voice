@@ -35,6 +35,9 @@ def test_office_env_example_covers_all_config_vars():
         "OFFICE_DOMAIN",
         "UI_PORT",
         "UI_ACCESS_SECRET",
+        "LIVEKIT_TURN_HOST",
+        "LIVEKIT_TURN_USERNAME",
+        "LIVEKIT_TURN_CREDENTIAL",
     }
     expected = set(REQUIRED_ENV_VARS) | set(OPTIONAL_ENV_VARS) | deploy_only_vars
 
@@ -116,7 +119,7 @@ def test_livekit_server_service_renders_template_and_restarts_on_failure():
     assert "--config /etc/livekit/livekit-server.yaml" in unit
 
 
-def test_livekit_server_template_renders_to_valid_yaml_with_tls_and_keys(tmp_path):
+def test_livekit_server_template_renders_to_valid_yaml_with_turn_relay_and_keys(tmp_path):
     if shutil.which("envsubst") is None:
         import pytest
 
@@ -130,7 +133,9 @@ def test_livekit_server_template_renders_to_valid_yaml_with_tls_and_keys(tmp_pat
         {
             "LIVEKIT_API_KEY": "testkey",
             "LIVEKIT_API_SECRET": "testsecret",
-            "OFFICE_DOMAIN": "voice.example-office.com",
+            "LIVEKIT_TURN_HOST": "turn.example-office.com",
+            "LIVEKIT_TURN_USERNAME": "turnuser",
+            "LIVEKIT_TURN_CREDENTIAL": "turnpass",
         }
     )
 
@@ -145,11 +150,43 @@ def test_livekit_server_template_renders_to_valid_yaml_with_tls_and_keys(tmp_pat
     rendered = yaml.safe_load(result.stdout)
 
     assert rendered["keys"] == {"testkey": "testsecret"}
-    assert rendered["tls"]["cert_file"] == (
-        "/etc/letsencrypt/live/voice.example-office.com/fullchain.pem"
-    )
+    # No self-hosted TLS - Cloudflare Tunnel terminates TLS at the edge for
+    # the WS signaling hostname, so livekit-server never holds its own cert.
+    assert "tls" not in rendered
     assert rendered["rtc"]["tcp_port"] == 7881
-    assert rendered["rtc"]["use_external_ip"] is True
+    # No reachable public IP behind the tunnel-only office network - media
+    # relays through the external TURN server instead of advertising a
+    # useless direct candidate.
+    assert rendered["rtc"]["use_external_ip"] is False
+    turn_server = rendered["rtc"]["turn_servers"][0]
+    assert turn_server["host"] == "turn.example-office.com"
+    assert turn_server["protocol"] == "tls"
+    assert turn_server["username"] == "turnuser"
+    assert turn_server["credential"] == "turnpass"
+
+
+def test_coturn_config_has_static_credential_and_tls():
+    conf = _read("turn/turnserver.conf.example")
+
+    assert "lt-cred-mech" in conf
+    assert "tls-listening-port=5349" in conf
+    assert "user=" in conf
+    assert "cert=" in conf and "pkey=" in conf
+
+
+def test_deploy_office_script_has_valid_shell_syntax_and_checks_placeholders():
+    script = DEPLOY_DIR / "systemd" / "deploy-office.sh"
+    assert script.exists()
+
+    result = subprocess.run(["sh", "-n", str(script)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+    content = script.read_text()
+    # Must refuse to deploy with unfilled office.env placeholders rather
+    # than silently starting services with broken/missing credentials.
+    assert "CHANGE_ME" in content
+    assert "LIVEKIT_TURN_HOST" in content
+    assert "scale-workers.sh" in content
 
 
 def test_worker_containerfile_builds_from_cuda_and_does_not_bake_weights():

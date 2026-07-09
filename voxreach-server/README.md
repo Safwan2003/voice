@@ -74,30 +74,69 @@ set -a; . office.env; set +a
 python scripts/generate-test-token.py
 ```
 
-## Deploy to production (real domain, TLS, auto-restart)
+## Deploy to production (Cloudflare Tunnel, auto-restart)
 
+This assumes the office server's only inbound path is a Cloudflare Tunnel
+(`cloudflared`) — no forwarded UDP, no direct public IP. That's enough for
+the UI and LiveKit signaling (both HTTP/WebSocket, which Cloudflare Tunnel
+proxies natively), but WebRTC call **media** needs a real public IP
+somewhere, which the office network can't provide. So media relays
+through a small external TURN server instead — see
+`deploy/turn/turnserver.conf.example` for the ~$5/mo VPS setup (coturn,
+static credential, no rotation needed).
+
+**1. Stand up the TURN relay VPS** (any small cloud VPS with a public
+IPv4 — doesn't need a GPU):
 ```bash
-cp deploy/env/office.env.example /etc/sdr-agent/office.env
-# fill in real LIVEKIT_URL (wss://), LIVEKIT_API_KEY/SECRET, OFFICE_DOMAIN
-# (needs valid certs at /etc/letsencrypt/live/$OFFICE_DOMAIN/)
-# and GROQ_API_KEY (or your chosen OFFICE_LLM_PROVIDER's key)
-
-sudo mkdir -p /etc/containers/systemd
-sudo cp deploy/systemd/sdr-worker@.container deploy/systemd/voxreach-ui.container /etc/containers/systemd/
-sudo cp deploy/systemd/livekit-server.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now livekit-server.service
-# Create host cache directory for Hugging Face weights (persists across container rebuilds)
-sudo mkdir -p /opt/sdr-agent/hf-cache
-sudo systemctl enable --now voxreach-ui.service
-./deploy/systemd/scale-workers.sh /etc/sdr-agent/office.env   # starts OFFICE_NUM_WORKERS worker instances
+# on the VPS
+sudo apt install coturn certbot
+sudo certbot certonly --standalone -d turn.yourdomain.com
+sudo cp deploy/turn/turnserver.conf.example /etc/turnserver.conf
+# edit: YOUR.VPS.PUBLIC.IP, turn.yourdomain.com, and a real user=name:pass
+sudo systemctl enable --now coturn
 ```
 
-This deploys systemd-managed (`Restart=on-failure`, boot-start) versions of the components,
-using Podman Quadlets for the containerized worker and UI service (deployed to `/etc/containers/systemd/`,
-not `/etc/systemd/system/` — they're picked up by `podman-system-generator` on `daemon-reload`).
-The real TLS config (`deploy/livekit/livekit-server.yaml.template`, rendered via `envsubst`
-at service start) is used instead of the local no-TLS dev config.
+**2. Configure and deploy the office server:**
+```bash
+cp deploy/env/office.env.example /etc/sdr-agent/office.env
+# fill in real LIVEKIT_URL (wss://your-livekit-hostname), LIVEKIT_API_KEY/SECRET,
+# GROQ_API_KEY (or your chosen OFFICE_LLM_PROVIDER's key), UI_ACCESS_SECRET,
+# and LIVEKIT_TURN_HOST/USERNAME/CREDENTIAL matching the VPS's turnserver.conf
+
+sudo ./deploy/systemd/deploy-office.sh /etc/sdr-agent/office.env
+```
+`deploy-office.sh` is idempotent (safe to re-run after an env edit or repo update) and
+refuses to proceed if any required var in `office.env` is still `CHANGE_ME` or empty. It
+installs the Podman Quadlets (worker + UI) to `/etc/containers/systemd/` — not
+`/etc/systemd/system/`, they're picked up by `podman-system-generator` on `daemon-reload` —
+installs and starts `livekit-server.service`, creates `/opt/sdr-agent/hf-cache`, starts the
+UI service, and runs `scale-workers.sh` to bring up `OFFICE_NUM_WORKERS` worker instances.
+`livekit-server.yaml.template` has no TLS block — Cloudflare Tunnel terminates TLS at the edge
+and forwards plain `ws://` locally, so livekit-server never holds its own certificate.
+
+Prefer to run each step by hand instead? `deploy-office.sh`'s six steps are: copy both
+Quadlets to `/etc/containers/systemd/`; copy `livekit-server.service` to
+`/etc/systemd/system/` and `enable --now` it; `mkdir -p /opt/sdr-agent/hf-cache`;
+`enable --now voxreach-ui.service`; run `./deploy/systemd/scale-workers.sh`.
+
+**3. Add ingress rules to your existing `cloudflared` tunnel config** (`config.yml` on the
+office server), then reload it (`sudo systemctl restart cloudflared` or equivalent):
+```yaml
+ingress:
+  - hostname: voxreach.yourdomain.com     # UI + token endpoint
+    service: http://localhost:8080
+  - hostname: livekit.yourdomain.com      # LiveKit WS signaling
+    service: http://localhost:7880
+  - service: http_status:404              # required catch-all
+```
+Then point DNS at the tunnel for both hostnames (`cloudflared tunnel route dns <TUNNEL-NAME> voxreach.yourdomain.com`
+and the same for `livekit.yourdomain.com`), and set `LIVEKIT_URL=wss://livekit.yourdomain.com`
+in `office.env` — Cloudflare upgrades the tunneled `ws://` to `wss://` for external clients automatically.
+
+If Cloudflare Access (email OTP, etc.) protects other things on this tunnel, make sure it is
+**not** applied to `livekit.yourdomain.com` — Access injects an HTML login flow that a raw
+WebSocket handshake can't complete. Scope any Access policy to the UI hostname only if you want
+an extra login layer beyond `UI_ACCESS_SECRET` (the app-level gate already on `voxreach.yourdomain.com`).
 
 ## Updating a running deployment
 
@@ -136,9 +175,10 @@ an alternative for non-systemd deployments, but hasn't been built.
 | `WHISPER_MODEL_SIZE` / `WHISPER_COMPUTE_TYPE` / `WHISPER_DEVICE` | optional | STT model variant/precision/device |
 | `OMNIVOICE_MODEL_ID` / `OMNIVOICE_DEVICE` | optional | TTS model/device |
 | `TENANTS_DATA_PATH` | optional (default `data/tenants.json`) | Tenant persona/greeting store location |
-| `OFFICE_DOMAIN` | optional | Production-only — domain for TLS cert lookup, unused by `run-local.sh` |
+| `OFFICE_DOMAIN` | optional | Unused when deploying behind Cloudflare Tunnel; kept for a future direct-TLS mode |
 | `UI_PORT` | optional (default `8080`) | Port the UI/token service listens on |
 | `UI_ACCESS_SECRET` | required for the UI service | Shared secret gating `POST /api/token` — treat like a password |
+| `LIVEKIT_TURN_HOST` / `LIVEKIT_TURN_USERNAME` / `LIVEKIT_TURN_CREDENTIAL` | required behind Cloudflare Tunnel | External TURN relay (see `deploy/turn/turnserver.conf.example`) — needed because the office network has no forwarded UDP path for WebRTC media |
 
 `deploy/env/office.env.example` ships with placeholders only — never
 commit real credentials.
