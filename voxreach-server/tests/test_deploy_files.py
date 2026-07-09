@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -31,19 +30,17 @@ def test_office_env_example_covers_all_config_vars():
 
     env_vars = _parse_env_file(_read("env/office.env.example"))
 
-    deploy_only_vars = {"OFFICE_NUM_WORKERS", "OFFICE_VLLM_GPU_MEM_UTIL", "OFFICE_DOMAIN"}
+    deploy_only_vars = {"OFFICE_NUM_WORKERS", "OFFICE_DOMAIN"}
     expected = set(REQUIRED_ENV_VARS) | set(OPTIONAL_ENV_VARS) | deploy_only_vars
 
     assert expected.issubset(env_vars.keys())
 
 
-def test_vllm_service_reads_env_file_and_restarts_on_failure():
-    unit = _read("systemd/vllm.service")
-
-    assert "EnvironmentFile=/etc/sdr-agent/office.env" in unit
-    assert "Restart=on-failure" in unit
-    assert re.search(r"ExecStart=.*\$\{OFFICE_LLM_MODEL\}", unit)
-    assert re.search(r"ExecStart=.*\$\{OFFICE_VLLM_GPU_MEM_UTIL\}", unit)
+def test_vllm_service_was_removed():
+    # vLLM self-hosting was removed — the LLM is always a hosted API now
+    # (OFFICE_LLM_PROVIDER=groq/openai/anthropic). See git history if
+    # self-hosting needs to come back.
+    assert not (DEPLOY_DIR / "systemd" / "vllm.service").exists()
 
 
 def test_sdr_worker_service_reads_env_file_and_restarts_on_failure():
@@ -51,8 +48,8 @@ def test_sdr_worker_service_reads_env_file_and_restarts_on_failure():
 
     assert "EnvironmentFile=/etc/sdr-agent/office.env" in unit
     assert "Restart=on-failure" in unit
-    assert "Requires=vllm.service" in unit
     assert "sdr_agent.worker" in unit
+    assert "vllm" not in unit.lower()
 
 
 def test_scale_workers_enables_one_instance_per_configured_worker(tmp_path):

@@ -7,8 +7,10 @@ def _config(**overrides):
         livekit_url="wss://example.com",
         livekit_api_key="key",
         livekit_api_secret="secret",
-        llm_model="Qwen/Qwen2.5-3B-Instruct-AWQ",
-        vllm_base_url="http://localhost:8000/v1",
+        llm_provider="groq",
+        llm_model="llama-3.3-70b-versatile",
+        llm_base_url="https://api.groq.com/openai/v1",
+        llm_api_key="test-groq-key",
         load_threshold=0.8,
         whisper_model_size="large-v3-turbo",
         whisper_compute_type="int8_float16",
@@ -67,7 +69,12 @@ def test_create_sdr_agent_session_wires_components(monkeypatch):
     monkeypatch.setattr(session_module.openai, "LLM", FakeLLM)
     monkeypatch.setattr(session_module, "AgentSession", FakeAgentSession)
 
-    config = _config(llm_model="test-model", vllm_base_url="http://vllm.local/v1")
+    config = _config(
+        llm_provider="groq",
+        llm_model="llama-3.3-70b-versatile",
+        llm_base_url="https://api.groq.com/openai/v1",
+        llm_api_key="test-groq-key",
+    )
     whisper_model, omnivoice_model, vad = object(), object(), object()
 
     session_module.create_sdr_agent_session(config, whisper_model, omnivoice_model, vad)
@@ -75,8 +82,37 @@ def test_create_sdr_agent_session_wires_components(monkeypatch):
     assert calls["stt_model"] is whisper_model
     assert calls["tts_model"] is omnivoice_model
     assert calls["llm"] == {
-        "model": "test-model",
-        "base_url": "http://vllm.local/v1",
-        "api_key": "not-needed",
+        "model": "llama-3.3-70b-versatile",
+        "base_url": "https://api.groq.com/openai/v1",
+        "api_key": "test-groq-key",
     }
     assert calls["session"]["vad"] is vad
+
+
+def test_create_sdr_agent_session_uses_anthropic_plugin_for_anthropic_provider(monkeypatch):
+    calls = {}
+
+    class FakeAnthropicLLM:
+        def __init__(self, *, model, api_key):
+            calls["llm"] = {"model": model, "api_key": api_key}
+
+    import sdr_agent.session as session_module
+
+    fake_anthropic_module = type("module", (), {"LLM": FakeAnthropicLLM})()
+    monkeypatch.setitem(
+        __import__("sys").modules, "livekit.plugins.anthropic", fake_anthropic_module
+    )
+    monkeypatch.setattr(session_module, "WhisperSTT", lambda model: None)
+    monkeypatch.setattr(session_module, "OmniVoiceTTS", lambda model: None)
+    monkeypatch.setattr(session_module, "AgentSession", lambda **kwargs: kwargs)
+
+    config = _config(
+        llm_provider="anthropic",
+        llm_model="claude-haiku-4-5",
+        llm_base_url="",
+        llm_api_key="test-anthropic-key",
+    )
+
+    session_module.create_sdr_agent_session(config, object(), object(), object())
+
+    assert calls["llm"] == {"model": "claude-haiku-4-5", "api_key": "test-anthropic-key"}

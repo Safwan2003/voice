@@ -14,10 +14,6 @@ def load_models(config):
     from livekit.plugins import silero
     from omnivoice import OmniVoice
 
-    # Load order matters: Whisper and OmniVoice must claim their VRAM
-    # before vLLM (a separate process/service) starts, so vLLM's
-    # gpu-memory-utilization budget correctly accounts for what's already
-    # resident (see office-server-deployment-design.md Capacity Analysis).
     whisper_model = WhisperModel(
         config.whisper_model_size,
         device=config.whisper_device,

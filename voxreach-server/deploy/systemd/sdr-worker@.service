@@ -1,8 +1,10 @@
 [Unit]
 Description=SDR voice agent worker (%i)
-After=network-online.target vllm.service
+# LLM provider is config-driven (OFFICE_LLM_PROVIDER in office.env) — a
+# hosted API (groq/openai/anthropic), so no local LLM process/ordering
+# dependency is needed here.
+After=network-online.target
 Wants=network-online.target
-Requires=vllm.service
 
 [Service]
 Type=simple
