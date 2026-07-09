@@ -144,3 +144,12 @@ def test_worker_containerfile_builds_from_cuda_and_does_not_bake_weights():
         "COPY pyproject.toml", ""
     ).replace("COPY src", "")
     assert "HF_HOME" in containerfile
+
+
+def test_ui_containerfile_installs_requirements_and_runs_flask_app():
+    containerfile = _read("container/ui.Containerfile")
+
+    assert "requirements.txt" in containerfile
+    assert "pip install" in containerfile
+    assert "ui_server/app.py" in containerfile
+    assert "EXPOSE" in containerfile
