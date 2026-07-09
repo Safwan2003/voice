@@ -174,3 +174,20 @@ def test_ui_containerfile_installs_requirements_and_runs_flask_app():
     assert "pip install" in containerfile
     assert "ui_server/app.py" in containerfile
     assert "EXPOSE" in containerfile
+
+
+def test_run_local_script_has_valid_shell_syntax():
+    script = DEPLOY_DIR / "container" / "run-local.sh"
+    assert script.exists()
+
+    result = subprocess.run(["sh", "-n", str(script)], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_start_sh_was_removed():
+    # Replaced by run-local.sh - once the worker/UI are containers,
+    # "run it locally" and "run it in production" are the same
+    # mechanism, so the old native-process script is redundant.
+    repo_root = DEPLOY_DIR.parent
+    assert not (repo_root / "start.sh").exists()
