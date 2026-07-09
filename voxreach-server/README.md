@@ -60,11 +60,11 @@ cp deploy/env/office.env.example office.env
 
 `run-local.sh` builds Podman images automatically (no local Python environment setup needed beyond Podman),
 then starts a local non-TLS `livekit-server` (`ws://localhost:7880`
-— no domain or certs needed for local testing) and the worker — then
-generates a test token itself and serves `ui/index.html` on
-`http://localhost:8080`, printing a **ready-to-click link with the URL
-and token pre-filled**. Open that link, hit Connect, done. Ctrl+C stops
-everything it started.
+— no domain or certs needed for local testing), the UI/token service, and
+the worker. Open `http://localhost:8080`, enter the shared secret
+(`UI_ACCESS_SECRET` in `office.env`), and click **Get Token** — it fetches
+a fresh connection token itself, no copy/pasting. Ctrl+C stops everything
+it started.
 
 Prefer to do it by hand, or connect via the LiveKit Agents Playground
 instead of `ui/index.html`? Generate a token yourself:
