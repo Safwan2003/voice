@@ -328,7 +328,9 @@ h1,h2,h3,h4,h5,h6{font-family:'Space Grotesk',sans-serif}
       <!-- Connection settings -->
       <div class="conn-bar">
         <input id="connUrl" placeholder="Server URL (ws://localhost:7880 for local dev, wss://your-domain for production)" style="flex:1;min-width:220px">
-        <input id="connToken" placeholder="Access token (run scripts/generate-test-token.py)" style="flex:2;min-width:280px">
+        <input id="connToken" placeholder="Access token (or use Get Token below)" style="flex:2;min-width:280px">
+        <input id="uiSecret" type="password" placeholder="Shared secret" style="flex:1;min-width:140px">
+        <button class="bt bt-am bt-sm" onclick="requestToken()"><i class="fas fa-key"></i> Get Token</button>
         <button class="bt bt-gh bt-sm" onclick="saveConnSettings()"><i class="fas fa-floppy-disk"></i> Save</button>
       </div>
       <!-- Call header -->
@@ -493,6 +495,25 @@ function getConnSettings(){
     url: (document.getElementById('connUrl').value || localStorage.getItem('sdr_lk_url') || '').trim(),
     token: (document.getElementById('connToken').value || localStorage.getItem('sdr_lk_token') || '').trim(),
   };
+}
+async function requestToken(){
+  const secret = document.getElementById('uiSecret').value.trim();
+  if(!secret){toast('Enter the shared secret first','err');return}
+  try{
+    const res = await fetch('/api/token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({secret}),
+    });
+    const data = await res.json();
+    if(!res.ok){toast(data.error || 'Failed to get token','err');return}
+    document.getElementById('connUrl').value = data.url;
+    document.getElementById('connToken').value = data.token;
+    saveConnSettings();
+    toast('Token acquired — ready to call','ok');
+  }catch(e){
+    toast('Could not reach token endpoint: ' + e.message, 'err');
+  }
 }
 function saveConnSettings(){
   const url = document.getElementById('connUrl').value.trim();
