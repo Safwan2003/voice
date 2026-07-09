@@ -11,8 +11,8 @@ Two tracks in this repo:
 - **Office server deployment** (`voxreach-server/`) — the production
   package, meant for a self-hosted server with a GPU. See
   [`voxreach-server/README.md`](voxreach-server/README.md) for how to run
-  it (`./start.sh` gives you a one-command local test with a ready-to-click
-  link), and `docs/superpowers/specs/` for the design docs.
+  it (`./deploy/container/run-local.sh` gives you a one-command local
+  test via Podman), and `docs/superpowers/specs/` for the design docs.
 
 Each track has its own browser-based LiveKit connection tester
 (`colab/index.html`, `voxreach-server/ui/index.html`) for manually trying

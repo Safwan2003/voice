@@ -104,6 +104,7 @@ else
     --env-file "$ENV_FILE" \
     --env LIVEKIT_URL="ws://localhost:7880" \
     --env WHISPER_DEVICE=cpu \
+    --env OMNIVOICE_DEVICE=cpu \
     -v "$REPO_ROOT/.hf-cache:/root/.cache/huggingface" \
     voxreach-worker:local >/dev/null
 fi
