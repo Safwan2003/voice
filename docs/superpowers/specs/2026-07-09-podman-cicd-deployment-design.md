@@ -38,17 +38,37 @@ unaffected — their VRAM budget from the original spec's Capacity Analysis
   Automating that (e.g. a self-hosted GitHub Actions runner on the box)
   is a small, natural follow-up once hardware exists — not designed here
   in detail so it isn't designed against guessed specs.
-- **Live token issuance for the production UI.** The UI container serves
-  the same static `ui/index.html` tester that exists today. Generating a
-  fresh connection token stays a manual step (`scripts/generate-test-token.py`),
-  same as it already is for local dev via `start.sh`. A self-service
-  token-issuing backend is a separate feature, not part of this spec.
+- **Outbound calling (SIP/telephony) itself.** Still a separate, later
+  phase, per the original deployment spec's own deferral — needs a SIP
+  trunk provider and a dialer/trigger service, neither of which exists
+  yet. See "Outbound-calling readiness" below for why this phase doesn't
+  need to be redesigned when that work starts.
+- **Real user accounts/login for the UI.** A shared-secret gate (below)
+  is the right amount of protection for a single-operator testing/demo
+  tool right now. Per-user accounts are the multi-tenant dashboard's
+  problem (`2026-07-08-multi-tenant-foundation-design.md`), not this
+  deployment spec's.
 - **Blue/green or zero-downtime deploys.** A restart during an update is
   acceptable at this stage — this isn't yet a 24/7 service with live
   traffic to protect.
 - **Linting/formatting tooling.** Out of scope for this spec — CI runs
   the existing pytest suite; adding a linter is a separate, optional
   future change if wanted.
+
+## Outbound-calling readiness
+
+The voice agent is meant for outbound calling eventually, so it's worth
+stating explicitly why this spec doesn't need to change when that phase
+starts: **the worker doesn't know or care how a call began.** Today, a
+human opens the UI, requests a token, and joins a LiveKit room, which
+LiveKit routes to whichever registered worker is free. When outbound
+calling exists, some future dialer service will instead create a LiveKit
+room and connect it to a phone number via a SIP trunk — LiveKit routes
+that to whichever registered worker is free, the same way. The
+containerized worker fleet and its scaling story (this spec's actual
+subject) serve both cases unchanged; only what *initiates* the call
+differs. Nothing here should be read as building outbound calling — it
+isn't — only as not blocking it.
 
 ## Why Podman (not bare processes, not Kubernetes)
 
@@ -81,18 +101,19 @@ changes shape (bare process → container); `livekit-server` is untouched.
 ```
                   ┌─────────────────────────┐
                   │   livekit-server         │  (unchanged: native binary,
-                  │   (unchanged)            │   or existing Podman fallback
-                  └───────────┬─────────────┘   in start.sh)
+                  │   (unchanged)            │   or Podman fallback via
+                  └───────────┬─────────────┘   run-local.sh for local dev)
                      ┌────────┼────────┐
                      ▼        ▼        ▼
-              ┌───────────┐ ┌───────────┐ ┌───────────┐
-              │ UI         │ │ Worker #1 │ │ Worker #N │  ← Podman containers,
-              │ container  │ │ container │ │ container │    each a systemd
-              │ (Quadlet)  │ │ (Quadlet) │ │ (Quadlet) │    Quadlet unit
-              └───────────┘ └───────────┘ └───────────┘
-                              GPU-resident        GPU-resident
-                              (Whisper+OmniVoice)  (Whisper+OmniVoice)
-                              → hosted LLM API     → hosted LLM API
+              ┌────────────┐ ┌───────────┐ ┌───────────┐
+              │ UI + token  │ │ Worker #1 │ │ Worker #N │  ← Podman containers,
+              │ container   │ │ container │ │ container │    each a systemd
+              │ (Quadlet)   │ │ (Quadlet) │ │ (Quadlet) │    Quadlet unit
+              └────────────┘ └───────────┘ └───────────┘
+              serves index.html   GPU-resident        GPU-resident
+              + POST /api/token   (Whisper+OmniVoice)  (Whisper+OmniVoice)
+              (checks UI_ACCESS_  → hosted LLM API     → hosted LLM API
+               SECRET)
 ```
 
 `OFFICE_NUM_WORKERS` and `scale-workers.sh` keep working unchanged — they
@@ -130,28 +151,66 @@ for the Hugging Face cache directory, and `AddDevice=nvidia.com/gpu=all`
 for GPU passthrough. `Restart=on-failure` carries over from Quadlets'
 systemd integration — crash recovery behavior is unchanged from today.
 
-### 3. UI container + Quadlet
+### 3. UI container + Quadlet — now with self-service tokens
 
 A second, much lighter `Containerfile`
-(`deploy/container/ui.Containerfile`) — a minimal static-file-serving
-image (no CUDA, no Python ML deps) serving `voxreach-server/ui/index.html`
-on `UI_PORT` (currently only defaulted inside `start.sh`; this spec adds
-it to `office.env.example` as a documented, deploy-relevant var). Its
-Quadlet (`voxreach-ui.container`) runs permanently via systemd, so the
-tester is reachable on the office server at any time — not just during a
-manual `start.sh` run. Token generation for connecting to it stays the
-existing manual script, run on demand.
+(`deploy/container/ui.Containerfile`) — no CUDA, no ML deps. Unlike the
+current plain `python -m http.server`, this is a small Python web app
+(FastAPI or Flask — whichever has less boilerplate for two routes) with
+two routes:
 
-### 4. `livekit-server` — unchanged
+- `GET /` — serves the existing `ui/index.html` tester, unchanged.
+- `POST /api/token` — takes a shared secret in the request, checks it
+  against `UI_ACCESS_SECRET` (new env var, set in `office.env` next to
+  the existing API keys), and if it matches, generates and returns a
+  fresh LiveKit token — reusing the token-generation logic that already
+  exists in `scripts/generate-test-token.py`, not reimplementing it.
+
+`ui/index.html` gets a small change to match: instead of expecting
+`?token=...` pre-filled in the URL, it prompts once for the shared
+secret, calls `/api/token`, and connects with what comes back. This
+closes the "anyone who finds the URL gets a working token" gap with the
+smallest possible addition — one shared secret, no accounts, no session
+management. `UI_PORT` (currently only defaulted inside the
+soon-to-be-removed `start.sh`) moves to `office.env.example` as a
+documented var. The Quadlet (`voxreach-ui.container`) runs permanently
+via systemd, so the tester is reachable on the office server at any
+time.
+
+### 4. Local development: `start.sh` removed, replaced by a Podman runner
+
+`start.sh` (native processes, manual vLLM startup — vLLM is already
+gone) is removed outright. Once the worker and UI exist as container
+images, "run it locally to test" and "run it in production" become the
+same mechanism — a separate native-process script is redundant to
+maintain. Its replacement, `deploy/container/run-local.sh`:
+
+- Runs the same three pieces via `podman run` — `livekit-server` (already
+  has a Podman fallback path today, reused as-is), the UI container, and
+  the worker container.
+- **Detects GPU availability** (checks for `nvidia-smi`) and sets the
+  worker's device accordingly — `--device nvidia.com/gpu=all` +
+  `WHISPER_DEVICE=cuda` if a GPU is present, `WHISPER_DEVICE=cpu` with a
+  printed warning ("STT/TTS will be too slow for a real call, but the
+  code path is testable") if not. This does not add GPU access where
+  none exists — a laptop with no NVIDIA card still can't run real-time
+  inference, containerized or not — it just automates the same
+  CPU-fallback option that already exists today via `WHISPER_DEVICE=cpu`.
+- Keeps the "one command, ready-to-click link" convenience `start.sh`
+  had — generates a token via the new `/api/token` endpoint (or the
+  underlying script directly) rather than baking one into a URL by hand.
+
+### 5. `livekit-server` — unchanged
 
 No new work. Stays as it is today: native binary preferred, with the
-existing Podman-fallback path in `start.sh` for local dev when the
-binary isn't installed. It has no GPU dependency and never needs more
-than one instance, so containerizing it buys nothing for this spec's
-goals (see brainstorming discussion — scaling for concurrent calls is
-entirely a worker concern).
+existing Podman-fallback path (moved from `start.sh` into
+`run-local.sh` above for local dev, and still an option in production if
+the native binary isn't installed). It has no GPU dependency and never
+needs more than one instance, so containerizing it buys nothing for this
+spec's goals (see brainstorming discussion — scaling for concurrent
+calls is entirely a worker concern).
 
-### 5. CI — GitHub Actions
+### 6. CI — GitHub Actions
 
 Two jobs in `.github/workflows/`:
 
@@ -216,12 +275,19 @@ push/PR → CI runs pytest (always) →
 - `voxreach-server/deploy/systemd/sdr-worker@.container` (Quadlet,
   replacing the current `sdr-worker@.service`)
 - `voxreach-server/deploy/systemd/voxreach-ui.container` (new Quadlet)
+- A small Python web app (route for `/` + `POST /api/token`) backing the
+  UI container, reusing `scripts/generate-test-token.py`'s token logic
+- `ui/index.html` updated to prompt for the shared secret and call
+  `/api/token` instead of expecting a pre-filled URL token
+- `voxreach-server/deploy/container/run-local.sh` — replaces `start.sh`
+- `voxreach-server/start.sh` — **deleted**
 - `.github/workflows/ci.yml` (or split `test.yml` + `build.yml`) with the
   `test` and `build` jobs described above
-- `UI_PORT` added to `deploy/env/office.env.example` and `office.env`
+- `UI_PORT` and `UI_ACCESS_SECRET` added to `deploy/env/office.env.example`
+  and `office.env`
 - README updates: the manual pull+restart runbook for deploying a new
-  image, and updated production-deploy instructions reflecting the
-  Quadlet units
+  image, updated production-deploy instructions reflecting the Quadlet
+  units, and `run-local.sh` replacing every `start.sh` mention
 
 ## Migration Notes
 
@@ -229,10 +295,11 @@ push/PR → CI runs pytest (always) →
   similar name — `scale-workers.sh` and `OFFICE_NUM_WORKERS` do not
   change.
 - `deploy/systemd/livekit-server.service` is untouched.
-- No new required env vars for the worker's own logic — `office.env`'s
-  LLM/STT/TTS variables are unchanged from the current (post-vLLM-removal)
-  set. `UI_PORT` is the only addition, and it already existed as a
-  `start.sh`-only default.
+- Worker's own env vars (LLM/STT/TTS) are unchanged from the current
+  (post-vLLM-removal) set. New vars are UI-only: `UI_PORT` (already
+  existed as a `start.sh`-only default) and `UI_ACCESS_SECRET` (new).
+- `start.sh` is deleted, not deprecated-in-place — `run-local.sh` is its
+  full replacement, so there is no reason to keep both.
 - This spec assumes the CUDA version/driver compatibility question gets
   pinned once real hardware is confirmed (a build-arg in the worker
   Containerfile) — not guessed at now.
