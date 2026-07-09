@@ -8,8 +8,8 @@ your env file first, e.g.:
     set -a; . office.env; set +a
     python scripts/generate-test-token.py
 
-Pass --raw to print only the bare token (no labels) — used by start.sh to
-build a ready-to-click link.
+Pass --raw to print only the bare token (no labels) — useful for scripting or
+building custom test links.
 """
 
 import argparse
