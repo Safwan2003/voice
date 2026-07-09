@@ -55,13 +55,11 @@ cp deploy/env/office.env.example office.env
 #   yourself and it just needs to match everywhere)
 # - set GROQ_API_KEY (or switch OFFICE_LLM_PROVIDER to openai/anthropic)
 
-pip install -e .
-pip install omnivoice || pip install "git+https://github.com/k2-fsa/OmniVoice.git"
-
-./start.sh office.env
+./deploy/container/run-local.sh office.env
 ```
 
-`start.sh` starts a local non-TLS `livekit-server` (`ws://localhost:7880`
+`run-local.sh` builds Podman images automatically (no local Python environment setup needed beyond Podman),
+then starts a local non-TLS `livekit-server` (`ws://localhost:7880`
 — no domain or certs needed for local testing) and the worker — then
 generates a test token itself and serves `ui/index.html` on
 `http://localhost:8080`, printing a **ready-to-click link with the URL
@@ -84,26 +82,45 @@ cp deploy/env/office.env.example /etc/sdr-agent/office.env
 # (needs valid certs at /etc/letsencrypt/live/$OFFICE_DOMAIN/)
 # and GROQ_API_KEY (or your chosen OFFICE_LLM_PROVIDER's key)
 
-sudo cp deploy/systemd/*.service /etc/systemd/system/
+sudo mkdir -p /etc/containers/systemd
+sudo cp deploy/systemd/sdr-worker@.container deploy/systemd/voxreach-ui.container /etc/containers/systemd/
+sudo cp deploy/systemd/livekit-server.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now livekit-server.service
+# Create host cache directory for Hugging Face weights (persists across container rebuilds)
+sudo mkdir -p /opt/sdr-agent/hf-cache
+sudo systemctl enable --now voxreach-ui.service
 ./deploy/systemd/scale-workers.sh /etc/sdr-agent/office.env   # starts OFFICE_NUM_WORKERS worker instances
 ```
 
-This is what `start.sh` is a dev-mode stand-in for: systemd-managed
-(`Restart=on-failure`, boot-start) versions of the same processes, using
-the real TLS config (`deploy/livekit/livekit-server.yaml.template`,
-rendered via `envsubst` at service start) instead of the local no-TLS one.
+This deploys systemd-managed (`Restart=on-failure`, boot-start) versions of the components,
+using Podman Quadlets for the containerized worker and UI service (deployed to `/etc/containers/systemd/`,
+not `/etc/systemd/system/` — they're picked up by `podman-system-generator` on `daemon-reload`).
+The real TLS config (`deploy/livekit/livekit-server.yaml.template`, rendered via `envsubst`
+at service start) is used instead of the local no-TLS dev config.
+
+## Updating a running deployment
+
+CI builds and pushes new images automatically on every merge to `main`.
+Getting a new image running on the office server is currently a manual
+step (no hardware exists yet to automate this against):
+
+```bash
+podman pull ghcr.io/safwan2003/voice/sdr-worker:latest
+podman pull ghcr.io/safwan2003/voice/sdr-ui:latest
+sudo systemctl restart sdr-worker@1.service   # repeat per worker instance
+sudo systemctl restart voxreach-ui.service
+```
 
 ## Portability
 
 Every hardware/environment-specific value is an env var — nothing is
 hardcoded — so this should run unchanged on any Linux box once `office.env`
-is filled in. `start.sh` runs `livekit-server` via Podman if the native
-binary isn't installed, but the worker itself still runs natively (not
-containerized) — production deployment assumes a Linux server with
-systemd. A full `docker-compose.yml` covering every component would be
-the natural next step for deeper portability, but hasn't been built.
+is filled in. Both dev (`run-local.sh`) and production deployment use Podman
+containerization for full isolation and reproducibility. Production deployment
+assumes a Linux server with systemd and Podman, using Quadlet units for
+service management. A full `docker-compose.yml` covering every component would be
+an alternative for non-systemd deployments, but hasn't been built.
 
 ## `.env` keys
 
@@ -119,7 +136,9 @@ the natural next step for deeper portability, but hasn't been built.
 | `WHISPER_MODEL_SIZE` / `WHISPER_COMPUTE_TYPE` / `WHISPER_DEVICE` | optional | STT model variant/precision/device |
 | `OMNIVOICE_MODEL_ID` / `OMNIVOICE_DEVICE` | optional | TTS model/device |
 | `TENANTS_DATA_PATH` | optional (default `data/tenants.json`) | Tenant persona/greeting store location |
-| `OFFICE_DOMAIN` | optional | Production-only — domain for TLS cert lookup, unused by `start.sh` |
+| `OFFICE_DOMAIN` | optional | Production-only — domain for TLS cert lookup, unused by `run-local.sh` |
+| `UI_PORT` | optional (default `8080`) | Port the UI/token service listens on |
+| `UI_ACCESS_SECRET` | required for the UI service | Shared secret gating `POST /api/token` — treat like a password |
 
 `deploy/env/office.env.example` ships with placeholders only — never
 commit real credentials.
